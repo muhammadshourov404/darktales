@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DarkTales — ফিড</title>
+<link rel="stylesheet" href="assets/css/main.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<script src="assets/js/auth-guard.js"></script>
+<script src="assets/js/nav.js"></script>
+</head>
+<body>
+<div id="loading-screen" class="loading-screen">
+  <div class="logo-text">DarkTales</div>
+  <div class="spinner spinner-lg"></div>
+</div>
+<div class="app-shell">
+  <main class="app-main" id="main-content">
+    <div class="tabs" id="feed-tabs">
+      <button class="tab-btn active" data-tab="following" onclick="switchFeedTab(this,'following')">Following</button>
+      <button class="tab-btn" data-tab="explore" onclick="switchFeedTab(this,'explore')">সকলের গল্প</button>
+      <button class="tab-btn" data-tab="trending" onclick="switchFeedTab(this,'trending')">ট্রেন্ডিং</button>
+      <button class="tab-btn" data-tab="featured" onclick="switchFeedTab(this,'featured')">ফিচার্ড</button>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;" id="category-filter-row">
+      <button class="tag-pill active" data-cat="" onclick="filterByCategory(this,'')">সব</button>
+      <button class="tag-pill" data-cat="ghost" onclick="filterByCategory(this,'ghost')">ভুতুড়ে</button>
+      <button class="tag-pill" data-cat="dark" onclick="filterByCategory(this,'dark')">রাতের আঁধার</button>
+      <button class="tag-pill" data-cat="real" onclick="filterByCategory(this,'real')">বাস্তব ভয়</button>
+      <button class="tag-pill" data-cat="super" onclick="filterByCategory(this,'super')">অতিপ্রাকৃত</button>
+      <button class="tag-pill" data-cat="challenge" onclick="filterByCategory(this,'challenge')">চ্যালেঞ্জ</button>
+      <button class="tag-pill" data-cat="mystery" onclick="filterByCategory(this,'mystery')">রহস্য</button>
+    </div>
+
+    <div id="stories-feed"></div>
+    <div id="load-more-wrap" style="text-align:center;padding:1.5rem 0;display:none;">
+      <button class="btn btn-ghost" onclick="loadMore()">আরো গল্প দেখুন</button>
+    </div>
+    <div id="feed-loading" style="text-align:center;padding:2rem;display:none;">
+      <div class="spinner spinner-lg" style="margin:0 auto;"></div>
+    </div>
+  </main>
+</div>
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+let currentTab = 'following';
+let currentCat = '';
+let lastDoc = null;
+let loadingMore = false;
+const PAGE_SIZE = 10;
+
+requireAuth((user, userData) => {
+  buildNav('feed');
+  loadFeed(true);
+});
+
+function switchFeedTab(btn, tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = tab;
+  lastDoc = null;
+  loadFeed(true);
+}
+
+function filterByCategory(btn, cat) {
+  document.querySelectorAll('#category-filter-row .tag-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentCat = cat;
+  lastDoc = null;
+  loadFeed(true);
+}
+
+async function loadFeed(reset = false) {
+  if (loadingMore) return;
+  loadingMore = true;
+  if (reset) {
+    document.getElementById('stories-feed').innerHTML = '';
+    lastDoc = null;
+  }
+  document.getElementById('feed-loading').style.display = 'block';
+
+  try {
+    let query = db.collection('stories')
+      .where('isDraft', '==', false)
+      .where('hidden', '==', false);
+
+    if (currentCat) query = query.where('category', '==', currentCat);
+
+    if (currentTab === 'trending') {
+      query = query.orderBy('views', 'desc').orderBy('createdAt', 'desc');
+    } else if (currentTab === 'featured') {
+      query = query.where('featured', '==', true).orderBy('createdAt', 'desc');
+    } else {
+      query = query.orderBy('createdAt', 'desc');
+    }
+
+    if (lastDoc) query = query.startAfter(lastDoc);
+    query = query.limit(PAGE_SIZE);
+
+    let snap = await query.get();
+
+    // For following tab, filter to followed users
+    if (currentTab === 'following' && currentUser) {
+      const followSnap = await db.collection('follows')
+        .where('followerId', '==', currentUser.uid).get();
+      const followingIds = followSnap.docs.map(d => d.data().followingId);
+      if (followingIds.length === 0) {
+        showEmptyFollowing();
+        document.getElementById('feed-loading').style.display = 'none';
+        loadingMore = false;
+        return;
+      }
+      const docs = snap.docs.filter(d => followingIds.includes(d.data().authorId));
+      if (docs.length === 0 && reset) {
+        showEmptyFollowing();
+        document.getElementById('feed-loading').style.display = 'none';
+        loadingMore = false;
+        return;
+      }
+      renderStories(docs, reset);
+    } else {
+      renderStories(snap.docs, reset);
+    }
+
+    if (snap.docs.length > 0) lastDoc = snap.docs[snap.docs.length - 1];
+    document.getElementById('load-more-wrap').style.display = snap.docs.length === PAGE_SIZE ? 'block' : 'none';
+  } catch (e) {
+    showToast('গল্প লোড করতে সমস্যা হয়েছে', 'error');
+  }
+  document.getElementById('feed-loading').style.display = 'none';
+  loadingMore = false;
+}
+
+function renderStories(docs, reset) {
+  const feed = document.getElementById('stories-feed');
+  if (reset && docs.length === 0) {
+    feed.innerHTML = `<div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <h3>কোনো গল্প নেই</h3>
+      <p>এখনো কোনো গল্প পোস্ট করা হয়নি।</p>
+      <a href="write.html" class="btn btn-primary btn-sm mt-2">প্রথম গল্প লিখুন</a>
+    </div>`;
+    return;
+  }
+  docs.forEach(doc => {
+    const s = { id: doc.id, ...doc.data() };
+    feed.insertAdjacentHTML('beforeend', renderStoryCard(s));
+  });
+}
+
+function showEmptyFollowing() {
+  document.getElementById('stories-feed').innerHTML = `<div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <h3>কাউকে ফলো করুন</h3>
+    <p>আপনার ফলো করা লেখকদের গল্প এখানে দেখাবে।</p>
+    <a href="explore.html" class="btn btn-primary btn-sm mt-2">লেখক খুঁজুন</a>
+  </div>`;
+}
+
+function renderStoryCard(s) {
+  const avgRating = s.ratingCount > 0 ? (s.ratingSum / s.ratingCount).toFixed(1) : 0;
+  const cat = getCategoryInfo(s.category);
+  const isAnon = s.isAnonymous;
+  return `
+  <div class="story-card mb-2" onclick="goToStory('${s.id}')">
+    ${s.featured ? '<div style="margin-bottom:8px;"><span class="featured-badge">★ ফিচার্ড</span></div>' : ''}
+    <div class="story-card-meta">
+      <div class="story-card-author">
+        ${renderAvatar(isAnon ? 'অজানা' : (s.authorName || '?'), 'sm')}
+        <span class="story-card-author-name" onclick="event.stopPropagation();goToProfile('${s.authorId}')">${sanitizeText(isAnon ? 'অজানা লেখক' : (s.authorName || 'Anonymous'))}</span>
+      </div>
+      <span class="story-card-date">${timeAgo(s.createdAt)}</span>
+    </div>
+    <div class="story-card-title">${sanitizeText(s.title)}</div>
+    <div class="story-card-body">${sanitizeText(s.body)}</div>
+    <div class="story-card-footer">
+      <span class="category-badge ${cat.class}">${sanitizeText(cat.label)}</span>
+      ${s.language === 'en' ? '<span class="lang-badge">EN</span>' : '<span class="lang-badge">বাংলা</span>'}
+      <span style="font-size:11px;color:var(--text-3);margin-left:4px;">${s.readingTime || 1} মিনিট</span>
+      ${avgRating > 0 ? `<span style="font-size:12px;color:var(--gold);margin-left:4px;">★ ${avgRating}</span>` : ''}
+      <div class="story-card-actions">
+        <button class="story-action-btn" onclick="event.stopPropagation();toggleLike('${s.id}',this)" data-story="${s.id}" id="like-${s.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span>${fmtNum(s.likesCount || 0)}</span>
+        </button>
+        <button class="story-action-btn" onclick="event.stopPropagation();goToStory('${s.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>${fmtNum(s.commentsCount || 0)}</span>
+        </button>
+        <button class="story-action-btn" onclick="event.stopPropagation();toggleBookmark('${s.id}','${sanitizeText(s.title)}',this)" id="bm-${s.id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function toggleLike(storyId, btn) {
+  if (!currentUser) return;
+  const likeRef = db.collection('stories').doc(storyId).collection('likes').doc(currentUser.uid);
+  const storyRef = db.collection('stories').doc(storyId);
+  const likeDoc = await likeRef.get();
+  if (likeDoc.exists) {
+    await likeRef.delete();
+    await storyRef.update({ likesCount: firebase.firestore.FieldValue.increment(-1) });
+    btn.classList.remove('liked');
+  } else {
+    await likeRef.set({ uid: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await storyRef.update({ likesCount: firebase.firestore.FieldValue.increment(1) });
+    btn.classList.add('liked');
+    const storyDoc = await storyRef.get();
+    const storyData = storyDoc.data();
+    if (storyData && storyData.authorId !== currentUser.uid) {
+      await awardXP(storyData.authorId, XP_RULES.RECEIVE_LIKE, 'like_received');
+      await sendNotification(storyData.authorId, 'like', { uid: currentUser.uid, displayName: currentUserData?.displayName || 'Someone', username: currentUserData?.username || '' }, { storyId, storyTitle: storyData.title });
+    }
+  }
+}
+
+async function toggleBookmark(storyId, title, btn) {
+  if (!currentUser) return;
+  const bmRef = db.collection('bookmarks').doc(`${currentUser.uid}_${storyId}`);
+  const bmDoc = await bmRef.get();
+  if (bmDoc.exists) {
+    await bmRef.delete();
+    btn.classList.remove('bookmarked');
+    showToast('বুকমার্ক সরানো হয়েছে', 'info');
+  } else {
+    await bmRef.set({
+      userId: currentUser.uid,
+      storyId,
+      storyTitle: title,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    btn.classList.add('bookmarked');
+    showToast('বুকমার্ক করা হয়েছে', 'success');
+  }
+}
+
+function goToStory(id) {
+  window.location.href = `story.html?id=${id}`;
+}
+function goToProfile(uid) {
+  window.location.href = `profile.html?uid=${uid}`;
+}
+function loadMore() {
+  loadFeed(false);
+}
+
+// Check existing likes/bookmarks on load
+async function markUserInteractions() {
+  if (!currentUser) return;
+  const bmSnap = await db.collection('bookmarks')
+    .where('userId','==',currentUser.uid).get();
+  bmSnap.docs.forEach(d => {
+    const el = document.getElementById(`bm-${d.data().storyId}`);
+    if (el) el.classList.add('bookmarked');
+  });
+}
+</script>
+</body>
+</html>
