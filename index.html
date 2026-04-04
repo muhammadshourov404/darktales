@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DarkTales — প্রবেশ করুন</title>
+<meta name="description" content="DarkTales — ভয়ের গল্পের প্ল্যাটফর্ম। আপনার অভিজ্ঞতা শেয়ার করুন।">
+<link rel="stylesheet" href="assets/css/main.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<style>
+.auth-bg-text {
+  position: fixed;
+  bottom: -60px; right: -40px;
+  font-family: var(--font-display);
+  font-size: 14rem;
+  color: rgba(220,38,38,0.03);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  z-index: 0;
+}
+.banned-notice {
+  background: var(--red-dim);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--red);
+  margin-bottom: 1rem;
+  display: none;
+}
+</style>
+</head>
+<body>
+<div id="loading-screen" class="loading-screen">
+  <div class="logo-text">DarkTales</div>
+  <div class="spinner spinner-lg"></div>
+</div>
+
+<div class="auth-bg-text">DarkTales</div>
+
+<div class="auth-wrap">
+  <div class="auth-card" style="position:relative;z-index:1;">
+    <div class="auth-logo">
+      <div class="logo-text">DarkTales</div>
+      <p>ভয়ের গল্পের প্ল্যাটফর্মে স্বাগতম</p>
+    </div>
+
+    <div class="banned-notice" id="banned-notice">
+      আপনার অ্যাকাউন্ট নিষিদ্ধ করা হয়েছে। বিস্তারিত জানতে যোগাযোগ করুন।
+    </div>
+
+    <!-- Login Form -->
+    <div id="login-section">
+      <button class="auth-google-btn" id="google-btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Google দিয়ে প্রবেশ করুন
+      </button>
+
+      <div class="auth-divider">অথবা</div>
+
+      <div class="form-group">
+        <label class="form-label">ইমেইল</label>
+        <input class="form-input" type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">পাসওয়ার্ড</label>
+        <div class="password-wrap">
+          <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+          <span class="password-toggle" onclick="togglePass('login-password',this)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+        </div>
+        <span class="form-error" id="login-error"></span>
+      </div>
+      <div style="text-align:right;margin-bottom:1rem;">
+        <a href="#" onclick="showForgot()" style="font-size:13px;color:var(--red);">পাসওয়ার্ড ভুলে গেছেন?</a>
+      </div>
+      <button class="btn btn-primary w-full" id="login-btn" onclick="loginWithEmail()">প্রবেশ করুন</button>
+      <div class="auth-switch">নতুন অ্যাকাউন্ট? <a href="#" onclick="switchToRegister()">রেজিস্ট্রেশন করুন</a></div>
+    </div>
+
+    <!-- Register Form -->
+    <div id="register-section" style="display:none;">
+      <button class="auth-google-btn" id="google-btn-r" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Google দিয়ে রেজিস্ট্রেশন করুন
+      </button>
+      <div class="auth-divider">অথবা</div>
+      <div class="form-group">
+        <label class="form-label">নাম</label>
+        <input class="form-input" type="text" id="reg-name" placeholder="আপনার নাম" maxlength="50">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ইউজারনেম</label>
+        <input class="form-input" type="text" id="reg-username" placeholder="username (শুধু ইংরেজি, সংখ্যা, _)" maxlength="20" oninput="checkUsername(this)">
+        <span class="form-hint" id="username-hint">৩-২০ অক্ষর, শুধু a-z, 0-9, _</span>
+        <span class="form-error" id="username-error"></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ইমেইল</label>
+        <input class="form-input" type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">পাসওয়ার্ড</label>
+        <div class="password-wrap">
+          <input class="form-input" type="password" id="reg-password" placeholder="কমপক্ষে ৮ অক্ষর" autocomplete="new-password">
+          <span class="password-toggle" onclick="togglePass('reg-password',this)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">পাসওয়ার্ড নিশ্চিত করুন</label>
+        <input class="form-input" type="password" id="reg-password2" placeholder="••••••••" autocomplete="new-password">
+        <span class="form-error" id="reg-error"></span>
+      </div>
+      <button class="btn btn-primary w-full" id="register-btn" onclick="registerWithEmail()">অ্যাকাউন্ট তৈরি করুন</button>
+      <div class="auth-switch">অ্যাকাউন্ট আছে? <a href="#" onclick="switchToLogin()">প্রবেশ করুন</a></div>
+    </div>
+
+    <!-- Forgot Password -->
+    <div id="forgot-section" style="display:none;">
+      <h3 style="margin-bottom:1rem;font-family:var(--font-heading);">পাসওয়ার্ড রিসেট</h3>
+      <div class="form-group">
+        <label class="form-label">ইমেইল ঠিকানা</label>
+        <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com">
+        <span class="form-error" id="forgot-error"></span>
+      </div>
+      <button class="btn btn-primary w-full" onclick="sendReset()">রিসেট লিংক পাঠান</button>
+      <div class="auth-switch mt-2"><a href="#" onclick="switchToLogin()">লগইনে ফিরে যান</a></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('banned') === '1') {
+  document.getElementById('banned-notice').style.display = 'block';
+}
+
+redirectIfAuth();
+
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+function googleSignIn() {
+  auth.signInWithPopup(googleProvider).then(async (result) => {
+    const user = result.user;
+    const banned = await checkBanned(user.uid);
+    if (banned) return;
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) {
+      const username = 'user_' + user.uid.slice(0,8);
+      await db.collection('users').doc(user.uid).set({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || 'Anonymous',
+        username,
+        bio: '',
+        xp: 0,
+        level: 1,
+        theme: 'default',
+        verified: false,
+        banned: false,
+        followersCount: 0,
+        followingCount: 0,
+        storiesCount: 0,
+        totalLikesReceived: 0,
+        loginStreak: 1,
+        lastStreakDate: new Date().toDateString(),
+        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    window.location.href = 'feed.html';
+  }).catch((err) => {
+    showToast(err.message || 'Google লগইন ব্যর্থ হয়েছে', 'error');
+  });
+}
+
+document.getElementById('google-btn').addEventListener('click', googleSignIn);
+document.getElementById('google-btn-r').addEventListener('click', googleSignIn);
+
+async function loginWithEmail() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!email || !pass) { errEl.textContent = 'সব তথ্য দিন'; errEl.classList.add('show'); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+    window.location.href = 'feed.html';
+  } catch (err) {
+    const msgs = {
+      'auth/user-not-found': 'ইমেইল পাওয়া যায়নি',
+      'auth/wrong-password': 'পাসওয়ার্ড ভুল',
+      'auth/too-many-requests': 'অনেকবার চেষ্টা হয়েছে, একটু পরে আবার চেষ্টা করুন',
+      'auth/invalid-email': 'ইমেইল ফরম্যাট ভুল'
+    };
+    errEl.textContent = msgs[err.code] || err.message;
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'প্রবেশ করুন';
+  }
+}
+
+async function registerWithEmail() {
+  const name = document.getElementById('reg-name').value.trim();
+  const username = document.getElementById('reg-username').value.trim().toLowerCase();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-password').value;
+  const pass2 = document.getElementById('reg-password2').value;
+  const errEl = document.getElementById('reg-error');
+  errEl.classList.remove('show');
+  if (!name || !username || !email || !pass || !pass2) {
+    errEl.textContent = 'সব তথ্য দিন'; errEl.classList.add('show'); return;
+  }
+  if (!isValidUsername(username)) {
+    errEl.textContent = 'ইউজারনেম অবৈধ (৩-২০ অক্ষর, a-z 0-9 _)'; errEl.classList.add('show'); return;
+  }
+  if (pass.length < 8) {
+    errEl.textContent = 'পাসওয়ার্ড কমপক্ষে ৮ অক্ষর হতে হবে'; errEl.classList.add('show'); return;
+  }
+  if (pass !== pass2) {
+    errEl.textContent = 'পাসওয়ার্ড মিলছে না'; errEl.classList.add('show'); return;
+  }
+  const usernameCheck = await db.collection('users').where('username','==',username).get();
+  if (!usernameCheck.empty) {
+    errEl.textContent = 'এই ইউজারনেম ইতিমধ্যে নেওয়া হয়েছে'; errEl.classList.add('show'); return;
+  }
+  const btn = document.getElementById('register-btn');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const result = await auth.createUserWithEmailAndPassword(email, pass);
+    await result.user.updateProfile({ displayName: name });
+    await result.user.sendEmailVerification();
+    await db.collection('users').doc(result.user.uid).set({
+      uid: result.user.uid,
+      email,
+      displayName: name,
+      username,
+      bio: '',
+      xp: 0,
+      level: 1,
+      theme: 'default',
+      verified: false,
+      banned: false,
+      followersCount: 0,
+      followingCount: 0,
+      storiesCount: 0,
+      totalLikesReceived: 0,
+      loginStreak: 1,
+      lastStreakDate: new Date().toDateString(),
+      lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('অ্যাকাউন্ট তৈরি হয়েছে! ইমেইল ভেরিফাই করুন।', 'success');
+    setTimeout(() => { window.location.href = 'feed.html'; }, 1500);
+  } catch (err) {
+    const msgs = {
+      'auth/email-already-in-use': 'এই ইমেইল ইতিমধ্যে ব্যবহৃত',
+      'auth/invalid-email': 'ইমেইল ফরম্যাট ভুল',
+      'auth/weak-password': 'পাসওয়ার্ড আরো শক্তিশালী করুন'
+    };
+    errEl.textContent = msgs[err.code] || err.message;
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'অ্যাকাউন্ট তৈরি করুন';
+  }
+}
+
+async function sendReset() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('forgot-error');
+  errEl.classList.remove('show');
+  if (!email) { errEl.textContent = 'ইমেইল দিন'; errEl.classList.add('show'); return; }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    showToast('রিসেট লিংক পাঠানো হয়েছে!', 'success');
+    switchToLogin();
+  } catch (err) {
+    errEl.textContent = 'ইমেইল পাওয়া যায়নি'; errEl.classList.add('show');
+  }
+}
+
+let usernameTimeout;
+async function checkUsername(input) {
+  clearTimeout(usernameTimeout);
+  const val = input.value.trim().toLowerCase();
+  const hint = document.getElementById('username-hint');
+  const err = document.getElementById('username-error');
+  err.classList.remove('show');
+  if (!val) return;
+  if (!isValidUsername(val)) {
+    err.textContent = '৩-২০ অক্ষর, শুধু a-z, 0-9, _';
+    err.classList.add('show'); return;
+  }
+  usernameTimeout = setTimeout(async () => {
+    const snap = await db.collection('users').where('username','==',val).get();
+    if (!snap.empty) {
+      err.textContent = 'এই ইউজারনেম নেওয়া হয়েছে'; err.classList.add('show');
+    } else {
+      hint.textContent = '✓ ইউজারনেম পাওয়া যাচ্ছে';
+      hint.style.color = 'var(--success)';
+    }
+  }, 600);
+}
+
+function togglePass(id, btn) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function switchToRegister() {
+  document.getElementById('login-section').style.display = 'none';
+  document.getElementById('register-section').style.display = 'block';
+  document.getElementById('forgot-section').style.display = 'none';
+}
+function switchToLogin() {
+  document.getElementById('login-section').style.display = 'block';
+  document.getElementById('register-section').style.display = 'none';
+  document.getElementById('forgot-section').style.display = 'none';
+}
+function showForgot() {
+  document.getElementById('login-section').style.display = 'none';
+  document.getElementById('register-section').style.display = 'none';
+  document.getElementById('forgot-section').style.display = 'block';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('login-section').style.display !== 'none') loginWithEmail();
+    if (document.getElementById('register-section').style.display !== 'none') registerWithEmail();
+  }
+});
+</script>
+</body>
+</html>
