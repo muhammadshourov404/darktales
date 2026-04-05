@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DarkTales — প্রোফাইল</title>
+<link rel="stylesheet" href="assets/css/main.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<script src="assets/js/auth-guard.js"></script>
+<script src="assets/js/nav.js"></script>
+</head>
+<body>
+<div id="loading-screen" class="loading-screen">
+  <div class="logo-text">DarkTales</div>
+  <div class="spinner spinner-lg"></div>
+</div>
+<div class="app-shell">
+  <main class="app-main" id="profile-container">
+    <div style="text-align:center;padding:3rem;"><div class="spinner spinner-lg" style="margin:0 auto;"></div></div>
+  </main>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">প্রোফাইল সম্পাদনা</span>
+      <button class="btn-icon" onclick="document.getElementById('edit-modal').classList.remove('open')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">নাম</label>
+      <input class="form-input" type="text" id="edit-name" maxlength="50">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Bio</label>
+      <textarea class="form-input form-textarea" id="edit-bio" maxlength="200" rows="3" placeholder="নিজের সম্পর্কে কিছু লিখুন..."></textarea>
+      <span class="form-hint">সর্বোচ্চ ২০০ অক্ষর</span>
+    </div>
+    <button class="btn btn-primary w-full" onclick="saveProfile()">সেভ করুন</button>
+  </div>
+</div>
+
+<!-- Followers/Following Modal -->
+<div class="modal-overlay" id="follow-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="follow-modal-title">ফলোয়ার</span>
+      <button class="btn-icon" onclick="document.getElementById('follow-modal').classList.remove('open')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="follow-list" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+let profileUid = null;
+let profileData = null;
+let isOwnProfile = false;
+let isFollowing = false;
+let currentTab = 'stories';
+
+requireAuth(async (user, userData) => {
+  buildNav('profile');
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('me') === '1' || params.get('uid') === user.uid) {
+    profileUid = user.uid;
+    isOwnProfile = true;
+  } else {
+    profileUid = params.get('uid');
+    isOwnProfile = false;
+  }
+  if (!profileUid) { window.location.href = 'feed.html'; return; }
+  await loadProfile();
+});
+
+async function loadProfile() {
+  const doc = await db.collection('users').doc(profileUid).get();
+  if (!doc.exists) {
+    document.getElementById('profile-container').innerHTML = '<div class="empty-state"><h3>ব্যবহারকারী পাওয়া যায়নি</h3></div>';
+    return;
+  }
+  profileData = doc.data();
+
+  if (!isOwnProfile) {
+    const followDoc = await db.collection('follows').doc(`${currentUser.uid}_${profileUid}`).get();
+    isFollowing = followDoc.exists;
+  }
+  renderProfile();
+  loadStories();
+}
+
+function renderProfile() {
+  const d = profileData;
+  const lvl = getLevelInfo(d.xp || 0);
+  const progress = getXPProgress(d.xp || 0);
+
+  document.title = `${d.displayName} — DarkTales`;
+  document.getElementById('profile-container').innerHTML = `
+    <div class="profile-cover"></div>
+    <div class="profile-card" style="border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);">
+      <div class="profile-avatar-wrap" style="position:relative;margin-bottom:0;">
+        ${renderAvatar(d.displayName, 'xl', d.verified ? 'verified' : '')}
+      </div>
+      <div class="profile-header-row" style="padding-top:8px;">
+        ${isOwnProfile ? `<button class="btn btn-ghost btn-sm" onclick="openEditModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          সম্পাদনা
+        </button>` : `<button class="btn ${isFollowing?'btn-outline-red':'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow()">
+          ${isFollowing ? 'আনফলো' : 'ফলো করুন'}
+        </button>`}
+      </div>
+      <div style="padding-top:48px;">
+        <div class="profile-name">
+          ${sanitizeText(d.displayName)}
+          ${d.verified ? `<svg class="verified-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>` : ''}
+          ${d.banned ? '<span class="banned-badge">নিষিদ্ধ</span>' : ''}
+        </div>
+        <div class="profile-username">@${sanitizeText(d.username || 'unknown')}</div>
+        ${d.bio ? `<div class="profile-bio">${sanitizeText(d.bio)}</div>` : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;">
+          ${renderLevelBadge(d.xp || 0)}
+          <span style="font-size:12px;color:var(--gold);">${fmtNum(d.xp || 0)} XP</span>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat" onclick="showFollowList('followers')">
+            <div class="profile-stat-val">${fmtNum(d.followersCount || 0)}</div>
+            <div class="profile-stat-label">ফলোয়ার</div>
+          </div>
+          <div class="profile-stat" onclick="showFollowList('following')">
+            <div class="profile-stat-val">${fmtNum(d.followingCount || 0)}</div>
+            <div class="profile-stat-label">Following</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-val">${fmtNum(d.storiesCount || 0)}</div>
+            <div class="profile-stat-label">গল্প</div>
+          </div>
+          <div class="profile-stat">
+            <div class="profile-stat-val">${fmtNum(d.totalLikesReceived || 0)}</div>
+            <div class="profile-stat-label">লাইক</div>
+          </div>
+        </div>
+        <div style="margin-top:1rem;">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;">XP অগ্রগতি · ${lvl.name}</div>
+          <div class="xp-bar-wrap" style="height:6px;"><div class="xp-bar-fill" style="width:${progress}%"></div></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:6px;">যোগ দিয়েছেন ${d.createdAt ? timeAgo(d.createdAt) : ''}</div>
+      </div>
+    </div>
+
+    <div class="tabs mt-3" id="profile-tabs">
+      <button class="tab-btn active" onclick="switchTab(this,'stories')">গল্পসমূহ</button>
+      ${isOwnProfile ? '<button class="tab-btn" onclick="switchTab(this,\'drafts\')">ড্রাফট</button>' : ''}
+    </div>
+    <div id="profile-stories"></div>`;
+}
+
+function switchTab(btn, tab) {
+  document.querySelectorAll('#profile-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = tab;
+  loadStories();
+}
+
+async function loadStories() {
+  const el = document.getElementById('profile-stories');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:2rem;"><div class="spinner" style="margin:0 auto;"></div></div>';
+  let query = db.collection('stories').where('authorId', '==', profileUid);
+  if (currentTab === 'drafts') {
+    query = query.where('isDraft', '==', true);
+  } else {
+    query = query.where('isDraft', '==', false).where('hidden', '==', false);
+  }
+  query = query.orderBy('createdAt', 'desc').limit(20);
+  const snap = await query.get();
+  if (snap.empty) {
+    el.innerHTML = `<div class="empty-state"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><h3>কোনো গল্প নেই</h3></div>`;
+    return;
+  }
+  el.innerHTML = snap.docs.map(doc => {
+    const s = { id: doc.id, ...doc.data() };
+    const cat = getCategoryInfo(s.category);
+    return `<div class="story-card mb-2" onclick="window.location.href='story.html?id=${s.id}'">
+      ${currentTab === 'drafts' ? '<span style="font-size:11px;color:var(--text-3);margin-bottom:6px;display:block;">ড্রাফট</span>' : ''}
+      <div class="story-card-title">${sanitizeText(s.title)}</div>
+      <div class="story-card-body">${sanitizeText(s.body)}</div>
+      <div class="story-card-footer">
+        <span class="category-badge ${cat.class}">${sanitizeText(cat.label)}</span>
+        <span style="font-size:12px;color:var(--text-3);margin-left:auto;">${timeAgo(s.createdAt)}</span>
+        <span style="font-size:12px;color:var(--text-3);">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          ${fmtNum(s.likesCount || 0)}
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleFollow() {
+  const followId = `${currentUser.uid}_${profileUid}`;
+  const followRef = db.collection('follows').doc(followId);
+  const btn = document.getElementById('follow-btn');
+  if (isFollowing) {
+    await followRef.delete();
+    await db.collection('users').doc(profileUid).update({ followersCount: firebase.firestore.FieldValue.increment(-1) });
+    await db.collection('users').doc(currentUser.uid).update({ followingCount: firebase.firestore.FieldValue.increment(-1) });
+    isFollowing = false;
+    btn.textContent = 'ফলো করুন';
+    btn.className = 'btn btn-primary btn-sm';
+  } else {
+    await followRef.set({ followerId: currentUser.uid, followingId: profileUid, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    await db.collection('users').doc(profileUid).update({ followersCount: firebase.firestore.FieldValue.increment(1) });
+    await db.collection('users').doc(currentUser.uid).update({ followingCount: firebase.firestore.FieldValue.increment(1) });
+    await awardXP(profileUid, XP_RULES.RECEIVE_FOLLOWER, 'receive_follower');
+    await sendNotification(profileUid, 'follow',
+      { uid: currentUser.uid, displayName: currentUserData?.displayName, username: currentUserData?.username }, {});
+    isFollowing = true;
+    btn.textContent = 'আনফলো';
+    btn.className = 'btn btn-outline-red btn-sm';
+    showToast('ফলো করা হয়েছে', 'success');
+  }
+}
+
+async function showFollowList(type) {
+  document.getElementById('follow-modal-title').textContent = type === 'followers' ? 'ফলোয়ার' : 'Following';
+  document.getElementById('follow-modal').classList.add('open');
+  const list = document.getElementById('follow-list');
+  list.innerHTML = '<div style="text-align:center;padding:1.5rem;"><div class="spinner" style="margin:0 auto;"></div></div>';
+  let snap;
+  if (type === 'followers') {
+    snap = await db.collection('follows').where('followingId','==',profileUid).limit(50).get();
+  } else {
+    snap = await db.collection('follows').where('followerId','==',profileUid).limit(50).get();
+  }
+  if (snap.empty) { list.innerHTML = '<div class="empty-state" style="padding:1.5rem;"><p>কেউ নেই</p></div>'; return; }
+  const uids = snap.docs.map(d => type === 'followers' ? d.data().followerId : d.data().followingId);
+  const userSnaps = await Promise.all(uids.map(uid => db.collection('users').doc(uid).get()));
+  list.innerHTML = userSnaps.map(ud => {
+    if (!ud.exists) return '';
+    const u = ud.data();
+    return `<div class="user-row" style="cursor:pointer;" onclick="document.getElementById('follow-modal').classList.remove('open');window.location.href='profile.html?uid=${ud.id}'">
+      ${renderAvatar(u.displayName, 'md')}
+      <div class="user-row-info">
+        <div class="user-row-name">${sanitizeText(u.displayName)}</div>
+        <div class="user-row-username">@${sanitizeText(u.username || 'unknown')}</div>
+      </div>
+      ${renderLevelBadge(u.xp || 0)}
+    </div>`;
+  }).join('');
+}
+
+function openEditModal() {
+  document.getElementById('edit-name').value = profileData.displayName || '';
+  document.getElementById('edit-bio').value = profileData.bio || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+async function saveProfile() {
+  const name = document.getElementById('edit-name').value.trim();
+  const bio = document.getElementById('edit-bio').value.trim();
+  if (!name) { showToast('নাম দিন', 'error'); return; }
+  await db.collection('users').doc(currentUser.uid).update({ displayName: name, bio });
+  await currentUser.updateProfile({ displayName: name });
+  profileData.displayName = name;
+  profileData.bio = bio;
+  document.getElementById('edit-modal').classList.remove('open');
+  renderProfile();
+  loadStories();
+  showToast('প্রোফাইল আপডেট হয়েছে', 'success');
+}
+</script>
+</body>
+</html>
