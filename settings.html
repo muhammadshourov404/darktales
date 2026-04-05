@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DarkTales — সেটিংস</title>
+<link rel="stylesheet" href="assets/css/main.css">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="assets/js/firebase-config.js"></script>
+<script src="assets/js/auth-guard.js"></script>
+<script src="assets/js/nav.js"></script>
+<style>
+.theme-dot-default  { background: linear-gradient(135deg,#080814,#dc2626); }
+.theme-dot-blood    { background: linear-gradient(135deg,#0a0202,#7f0000); }
+.theme-dot-ghost    { background: linear-gradient(135deg,#06060f,#a855f7); }
+.theme-dot-midnight { background: linear-gradient(135deg,#020810,#0ea5e9); }
+.theme-dot-cursed   { background: linear-gradient(135deg,#0a0802,#d97706); }
+</style>
+</head>
+<body>
+<div id="loading-screen" class="loading-screen">
+  <div class="logo-text">DarkTales</div>
+  <div class="spinner spinner-lg"></div>
+</div>
+<div class="app-shell">
+  <main class="app-main">
+    <h2 class="page-title mb-2">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      সেটিংস
+    </h2>
+
+    <!-- XP Summary -->
+    <div class="card mb-2" id="xp-summary-card">
+      <div class="card-body" style="display:flex;align-items:center;gap:16px;">
+        <div id="settings-avatar"></div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:500;color:var(--text-1);" id="settings-name">লোড হচ্ছে...</div>
+          <div style="font-size:12px;color:var(--text-3);" id="settings-username"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <span id="settings-level-badge"></span>
+            <span style="font-size:12px;color:var(--gold);" id="settings-xp">0 XP</span>
+          </div>
+        </div>
+        <a href="profile.html?me=1" class="btn btn-ghost btn-sm">প্রোফাইল দেখুন</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+
+        <!-- Themes -->
+        <div class="settings-section">
+          <div class="settings-section-title">থিম</div>
+          <div class="theme-grid" id="theme-grid"></div>
+        </div>
+
+        <!-- Account -->
+        <div class="settings-section">
+          <div class="settings-section-title">অ্যাকাউন্ট</div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">পাসওয়ার্ড পরিবর্তন</div>
+              <div class="setting-desc">রিসেট লিংক আপনার ইমেইলে পাঠানো হবে</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="sendPasswordReset()">রিসেট করুন</button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">ইমেইল ভেরিফিকেশন</div>
+              <div class="setting-desc" id="email-verified-status">পরীক্ষা করা হচ্ছে...</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="verify-email-btn" onclick="sendVerification()" style="display:none;">ভেরিফাই করুন</button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">XP অর্জনের নিয়ম</div>
+              <div class="setting-desc">কীভাবে XP পাবেন তা দেখুন</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('xp-modal').classList.add('open')">দেখুন</button>
+          </div>
+        </div>
+
+        <!-- Privacy -->
+        <div class="settings-section">
+          <div class="settings-section-title">প্রাইভেসি ও নিরাপত্তা</div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">অ্যাকাউন্ট মুছুন</div>
+              <div class="setting-desc">এই কাজ পূর্বাবস্থায় ফেরানো যাবে না</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--border-accent);" onclick="confirmDelete()">মুছুন</button>
+          </div>
+        </div>
+
+        <!-- Logout -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">লগআউট</div>
+            <div class="setting-desc">সব ডিভাইস থেকে বের হয়ে যান</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="signOutUser()">লগআউট</button>
+        </div>
+
+        <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border);text-align:center;">
+          <p style="font-size:11px;color:var(--text-3);">DarkTales — © Muhammad Shourov. All Rights Reserved.</p>
+          <p style="font-size:11px;color:var(--text-3);margin-top:3px;">সমস্ত বিষয়বস্তু এবং ডিজাইনের স্বত্বাধিকার সংরক্ষিত।</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- XP Rules Modal -->
+<div class="modal-overlay" id="xp-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">XP অর্জনের নিয়ম</span>
+      <button class="btn-icon" onclick="document.getElementById('xp-modal').classList.remove('open')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      ${Object.entries({
+        'গল্প পোস্ট করলে': '+10 XP',
+        'প্রতিটি Like পেলে': '+2 XP',
+        'প্রতিটি Comment পেলে': '+3 XP',
+        'Rating পেলে': '+3 XP',
+        '5 Star Rating পেলে': '+8 XP',
+        'নতুন Follower পেলে': '+5 XP',
+        'গল্প Trending হলে': '+15 XP',
+        'গল্প Featured হলে': '+25 XP',
+        'Comment করলে': '+1 XP',
+        'Daily Login': '+3 XP/দিন'
+      }).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13.5px;">
+        <span style="color:var(--text-2);">${k}</span>
+        <span style="color:var(--gold);font-weight:500;">${v}</span>
+      </div>`).join('')}
+    </div>
+    <div style="margin-top:1rem;padding:12px;background:var(--bg-2);border-radius:var(--radius-md);">
+      <p style="font-size:12.5px;color:var(--text-3);line-height:1.6;">XP অর্জন করা কঠিন কারণ এটি মূল্যবান। XP দিয়ে বিশেষ থিম এবং ফিচার আনলক করুন।</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+requireAuth((user, userData) => {
+  buildNav('settings');
+  renderSettingsUI(userData);
+  checkEmailVerification(user);
+});
+
+function renderSettingsUI(userData) {
+  const xp = userData?.xp || 0;
+  const name = userData?.displayName || 'Anonymous';
+  const username = userData?.username || '';
+  const currentTheme = userData?.theme || 'default';
+
+  document.getElementById('settings-avatar').innerHTML = renderAvatar(name, 'md');
+  document.getElementById('settings-name').textContent = name;
+  document.getElementById('settings-username').textContent = '@' + username;
+  document.getElementById('settings-level-badge').innerHTML = renderLevelBadge(xp);
+  document.getElementById('settings-xp').textContent = fmtNum(xp) + ' XP';
+
+  // Themes
+  const grid = document.getElementById('theme-grid');
+  grid.innerHTML = THEMES.map(t => {
+    const unlocked = xp >= t.xpRequired;
+    const isActive = currentTheme === t.id;
+    return `<div class="theme-option ${isActive ? 'active' : ''} ${!unlocked ? 'locked' : ''}"
+      onclick="${unlocked ? `selectTheme('${t.id}')` : `showToast('${t.name} থিমের জন্য ${fmtNum(t.xpRequired)} XP দরকার','error')`}">
+      <div class="theme-dot theme-dot-${t.id}"></div>
+      <div class="theme-name">${t.name}</div>
+      ${!unlocked ? `<div class="theme-xp">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        ${fmtNum(t.xpRequired)} XP
+      </div>` : `<div class="theme-xp" style="color:var(--success);">আনলক</div>`}
+    </div>`;
+  }).join('');
+}
+
+async function selectTheme(themeId) {
+  await db.collection('users').doc(currentUser.uid).update({ theme: themeId });
+  applyTheme(themeId);
+  document.querySelectorAll('.theme-option').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[onclick*="selectTheme('${themeId}')"]`)?.classList.add('active');
+  showToast(`${themeId} থিম সেট করা হয়েছে`, 'success');
+}
+
+function checkEmailVerification(user) {
+  const statusEl = document.getElementById('email-verified-status');
+  const verifyBtn = document.getElementById('verify-email-btn');
+  if (user.emailVerified) {
+    statusEl.textContent = '✓ ইমেইল ভেরিফাই করা হয়েছে';
+    statusEl.style.color = 'var(--success)';
+  } else {
+    statusEl.textContent = 'ইমেইল ভেরিফাই করা হয়নি';
+    statusEl.style.color = 'var(--red)';
+    verifyBtn.style.display = 'inline-flex';
+  }
+}
+
+async function sendVerification() {
+  await currentUser.sendEmailVerification();
+  showToast('ভেরিফিকেশন ইমেইল পাঠানো হয়েছে', 'success');
+}
+
+async function sendPasswordReset() {
+  await auth.sendPasswordResetEmail(currentUser.email);
+  showToast('পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে', 'success');
+}
+
+async function confirmDelete() {
+  const confirm1 = confirm('আপনি কি নিশ্চিত? এই অ্যাকাউন্ট এবং সমস্ত গল্প মুছে যাবে।');
+  if (!confirm1) return;
+  const confirm2 = confirm('সত্যিই মুছে ফেলবেন? এটি পূর্বাবস্থায় ফেরানো সম্ভব নয়।');
+  if (!confirm2) return;
+  try {
+    const storiesSnap = await db.collection('stories').where('authorId', '==', currentUser.uid).get();
+    const batch = db.batch();
+    storiesSnap.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(db.collection('users').doc(currentUser.uid));
+    await batch.commit();
+    await currentUser.delete();
+    window.location.href = 'index.html';
+  } catch (e) {
+    showToast('মুছতে সমস্যা হয়েছে। পুনরায় লগইন করে চেষ্টা করুন।', 'error');
+  }
+}
+</script>
+</body>
+</html>
