@@ -4,163 +4,374 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DarkTales — Admin Panel</title>
-<link rel="stylesheet" href="assets/css/main.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="assets/js/firebase-config.js"></script>
-<script src="assets/js/auth-guard.js"></script>
-<script src="assets/js/nav.js"></script>
 <style>
-.admin-tabs { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:1.5rem; }
-.admin-tab { padding:8px 16px; border-radius:var(--radius-md); font-size:13px; color:var(--text-3); border:1px solid var(--border); background:transparent; cursor:pointer; transition:all var(--transition); }
-.admin-tab:hover { color:var(--text-1); background:var(--bg-hover); }
-.admin-tab.active { background:var(--red-dim); color:var(--red); border-color:var(--border-accent); }
-.admin-panel { display:none; }
-.admin-panel.active { display:block; }
-.filter-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1rem; align-items:center; }
-.search-sm { background:var(--bg-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:7px 12px; color:var(--text-1); font-size:13px; outline:none; width:220px; }
-.search-sm:focus { border-color:var(--red); }
-.status-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
-.status-active { background:var(--success); }
-.status-banned { background:var(--red); }
+/* ── Variables ── */
+:root {
+  --bg-0:#04040c;--bg-1:#080814;--bg-2:#0d0d1c;--bg-3:#121224;
+  --bg-card:#0f0f1e;--bg-hover:#161628;
+  --border:rgba(255,255,255,0.06);--border-hover:rgba(255,255,255,0.12);
+  --border-accent:rgba(220,38,38,0.3);
+  --text-1:#eaeaf8;--text-2:#9090b8;--text-3:#4a4a6a;
+  --red:#dc2626;--red-dim:#1a0808;--red-hover:#b91c1c;
+  --red-glow:rgba(220,38,38,0.15);
+  --gold:#d97706;--gold-dim:#1a0f00;
+  --success:#16a34a;--success-dim:#052010;
+  --info:#0ea5e9;--info-dim:#021525;
+  --purple:#7c3aed;--purple-dim:#0e0820;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-full:9999px;
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.7);
+  --transition:0.18s ease;
+  --font-display:'Cinzel Decorative',serif;
+  --font-heading:'Cinzel',serif;
+  --font-body:'DM Sans',sans-serif;
+  --sidebar-w:220px;--header-h:58px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font-body);background:var(--bg-0);color:var(--text-1);font-size:14px;line-height:1.6;min-height:100vh;overflow-x:hidden;}
+a{color:inherit;text-decoration:none;}
+button{font-family:var(--font-body);cursor:pointer;border:none;background:none;}
+svg{display:block;flex-shrink:0;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg-1);}
+::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:4px;}
+
+/* ── Typography ── */
+.logo-text{font-family:var(--font-display);font-size:1.1rem;color:var(--red);}
+h2{font-family:var(--font-heading);font-size:1.2rem;font-weight:600;color:var(--text-1);}
+h3{font-family:var(--font-heading);font-size:1rem;font-weight:600;color:var(--text-1);}
+
+/* ── Loading ── */
+.loading-screen{position:fixed;inset:0;background:var(--bg-0);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:spin 0.6s linear infinite;}
+.spinner-lg{width:36px;height:36px;border-width:3px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── Layout ── */
+.admin-shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;grid-template-rows:var(--header-h) 1fr;min-height:100vh;}
+.admin-header{grid-column:1/-1;position:sticky;top:0;z-index:100;height:var(--header-h);background:var(--bg-1);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 1.25rem;gap:1rem;}
+.admin-sidebar{position:sticky;top:var(--header-h);height:calc(100vh - var(--header-h));overflow-y:auto;padding:1rem 0.75rem;border-right:1px solid var(--border);background:var(--bg-1);display:flex;flex-direction:column;gap:2px;}
+.admin-main{padding:1.5rem;overflow-y:auto;}
+
+/* ── Sidebar Nav ── */
+.nav-section-label{font-size:10px;font-weight:600;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase;padding:.75rem .75rem .25rem;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-md);color:var(--text-2);font-size:13.5px;transition:all var(--transition);cursor:pointer;}
+.nav-item:hover{background:var(--bg-hover);color:var(--text-1);}
+.nav-item.active{background:var(--red-dim);color:var(--red);border:1px solid var(--border-accent);}
+.nav-item svg{color:var(--text-3);flex-shrink:0;}
+.nav-item.active svg{color:var(--red);}
+.sidebar-divider{border:none;border-top:1px solid var(--border);margin:.5rem .75rem;}
+.back-btn{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--radius-md);color:var(--text-3);font-size:13px;cursor:pointer;transition:all var(--transition);}
+.back-btn:hover{color:var(--text-2);background:var(--bg-hover);}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:500;transition:all var(--transition);white-space:nowrap;cursor:pointer;}
+.btn-primary{background:var(--red);color:white;border:1px solid var(--red);}
+.btn-primary:hover{background:var(--red-hover);}
+.btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border);}
+.btn-ghost:hover{background:var(--bg-hover);color:var(--text-1);border-color:var(--border-hover);}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.btn-xs{padding:3px 8px;font-size:11px;}
+.btn-icon{padding:7px;border-radius:var(--radius-md);color:var(--text-2);transition:all var(--transition);}
+.btn-icon:hover{background:var(--bg-hover);color:var(--text-1);}
+.btn:disabled{opacity:.4;pointer-events:none;}
+
+/* ── Cards ── */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.card-body{padding:1.1rem 1.25rem;}
+
+/* ── Stat Cards ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1.5rem;}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.1rem;}
+.stat-icon{width:34px;height:34px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+.stat-val{font-size:1.5rem;font-weight:600;font-family:var(--font-heading);color:var(--text-1);}
+.stat-label{font-size:11.5px;color:var(--text-3);margin-top:2px;}
+
+/* ── Tables ── */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-lg);}
+.admin-table{width:100%;border-collapse:collapse;font-size:13px;}
+.admin-table th{text-align:left;padding:10px 14px;color:var(--text-3);font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;}
+.admin-table td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text-2);vertical-align:middle;}
+.admin-table tr:last-child td{border-bottom:none;}
+.admin-table tr:hover td{background:var(--bg-hover);}
+.td-actions{display:flex;gap:4px;flex-wrap:wrap;}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:1.25rem;}
+.tab-btn{padding:7px 14px;border-radius:var(--radius-md);font-size:13px;color:var(--text-3);border:1px solid var(--border);background:transparent;cursor:pointer;transition:all var(--transition);font-family:var(--font-body);}
+.tab-btn:hover{color:var(--text-1);background:var(--bg-hover);}
+.tab-btn.active{background:var(--red-dim);color:var(--red);border-color:var(--border-accent);}
+.panel{display:none;}
+.panel.active{display:block;}
+
+/* ── Form ── */
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:.9rem;}
+.form-label{font-size:12.5px;font-weight:500;color:var(--text-2);}
+.form-input{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:9px 13px;color:var(--text-1);font-size:13.5px;outline:none;transition:border-color var(--transition);width:100%;font-family:var(--font-body);}
+.form-input::placeholder{color:var(--text-3);}
+.form-input:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-glow);}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234a4a6a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+.form-hint{font-size:11.5px;color:var(--text-3);}
+.form-error{font-size:12px;color:var(--red);padding:4px 0;}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:1rem;}
+.input-sm{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:7px 12px;color:var(--text-1);font-size:13px;outline:none;font-family:var(--font-body);}
+.input-sm:focus{border-color:var(--red);}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-full);font-size:10.5px;font-weight:600;}
+.badge-red{background:rgba(220,38,38,0.12);color:var(--red);border:1px solid rgba(220,38,38,0.2);}
+.badge-green{background:rgba(22,163,74,0.1);color:#4ade80;border:1px solid rgba(22,163,74,0.2);}
+.badge-gold{background:rgba(217,119,6,0.1);color:var(--gold);border:1px solid rgba(217,119,6,0.2);}
+.badge-blue{background:rgba(14,165,233,0.1);color:#38bdf8;border:1px solid rgba(14,165,233,0.2);}
+.badge-gray{background:rgba(74,74,106,0.2);color:var(--text-3);border:1px solid rgba(74,74,106,0.3);}
+
+/* ── Avatar ── */
+.avatar{border-radius:50%;background:var(--bg-3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-weight:600;color:var(--text-2);flex-shrink:0;user-select:none;}
+.avatar-sm{width:32px;height:32px;font-size:12px;}
+.avatar-md{width:40px;height:40px;font-size:15px;}
+
+/* ── Modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:modalIn .2s ease;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;}
+.modal-title{font-family:var(--font-heading);font-size:1rem;color:var(--text-1);}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* ── Toast ── */
+.toast-container{position:fixed;top:68px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:320px;}
+.toast{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px 15px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow-lg);animation:toastIn .25s ease;}
+.toast.success{border-color:rgba(22,163,74,0.3);}
+.toast.error{border-color:rgba(220,38,38,0.3);}
+.toast-msg{font-size:13px;color:var(--text-1);line-height:1.5;}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── Settings rows ── */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);gap:16px;}
+.setting-row:last-child{border-bottom:none;}
+.setting-info{flex:1;}
+.setting-label{font-size:13.5px;color:var(--text-1);font-weight:500;}
+.setting-desc{font-size:12px;color:var(--text-3);margin-top:2px;}
+.section-title{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:.75rem;padding-bottom:7px;border-bottom:1px solid var(--border);}
+
+/* ── Misc ── */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px;}
+.page-title{display:flex;align-items:center;gap:9px;font-family:var(--font-heading);font-size:1.15rem;font-weight:600;color:var(--text-1);}
+.divider{border:none;border-top:1px solid var(--border);margin:1rem 0;}
+.empty-row td{text-align:center;padding:2rem;color:var(--text-3);font-size:13px;}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;}
+.dot-green{background:var(--success);}
+.dot-red{background:var(--red);}
+.w-full{width:100%;}
+.mt-1{margin-top:.5rem;}
+.mt-2{margin-top:1rem;}
+.gap-2{gap:8px;}
+.flex{display:flex;}
+.flex-center{display:flex;align-items:center;}
+.hidden{display:none!important;}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .admin-shell{grid-template-columns:1fr;}
+  .admin-sidebar{display:none;}
+  .admin-main{padding:1rem;}
+}
 </style>
 </head>
 <body>
+
 <div id="loading-screen" class="loading-screen">
   <div class="logo-text">DarkTales</div>
   <div class="spinner spinner-lg"></div>
 </div>
-<div class="app-shell">
-  <main class="app-main wide">
-    <div class="section-header mb-2">
-      <h2 class="page-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        Admin Panel
-      </h2>
-      <span style="font-size:12px;color:var(--text-3);">© Muhammad Shourov — DarkTales</span>
-    </div>
 
-    <!-- Stats Grid -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1.5rem;" id="stats-grid">
-      <div class="admin-stat-card">
-        <div class="admin-stat-icon" style="background:var(--info-dim);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="admin-stat-val" id="stat-users">...</div>
-        <div class="admin-stat-label">মোট ইউজার</div>
-      </div>
-      <div class="admin-stat-card">
-        <div class="admin-stat-icon" style="background:var(--purple-dim);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        </div>
-        <div class="admin-stat-val" id="stat-stories">...</div>
-        <div class="admin-stat-label">মোট গল্প</div>
-      </div>
-      <div class="admin-stat-card">
-        <div class="admin-stat-icon" style="background:rgba(220,38,38,0.1);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-        </div>
-        <div class="admin-stat-val" id="stat-reports">...</div>
-        <div class="admin-stat-label">Pending রিপোর্ট</div>
-      </div>
-      <div class="admin-stat-card">
-        <div class="admin-stat-icon" style="background:var(--gold-dim);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <div class="admin-stat-val" id="stat-comments">...</div>
-        <div class="admin-stat-label">মোট মন্তব্য</div>
-      </div>
-    </div>
+<div id="toast-container" class="toast-container"></div>
 
-    <!-- Tabs -->
-    <div class="admin-tabs">
-      <button class="admin-tab active" onclick="switchPanel(this,'reports')">রিপোর্ট</button>
-      <button class="admin-tab" onclick="switchPanel(this,'users')">ইউজার</button>
-      <button class="admin-tab" onclick="switchPanel(this,'stories')">গল্প</button>
-      <button class="admin-tab" onclick="switchPanel(this,'system')">সিস্টেম</button>
-    </div>
+<!-- Access Denied -->
+<div id="access-denied" style="display:none;min-height:100vh;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+  <div class="logo-text" style="font-size:1.8rem;">DarkTales</div>
+  <div style="font-size:1rem;color:var(--text-2);">অ্যাক্সেস নেই</div>
+  <div style="font-size:13px;color:var(--text-3);">শুধুমাত্র Admin এই পেজ দেখতে পারবেন।</div>
+  <a href="index.html" class="btn btn-ghost">ফিরে যান</a>
+</div>
 
-    <!-- Reports Panel -->
-    <div class="admin-panel active" id="panel-reports">
-      <div class="filter-row">
-        <select class="search-sm" id="report-status-filter" onchange="loadReports()">
-          <option value="pending">Pending</option>
-          <option value="resolved">Resolved</option>
-          <option value="dismissed">Dismissed</option>
-        </select>
-        <span style="font-size:13px;color:var(--text-3);" id="report-count"></span>
-      </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr>
-            <th>ধরন</th><th>টার্গেট</th><th>কারণ</th><th>রিপোর্টকারী</th><th>সময়</th><th>অ্যাকশন</th>
-          </tr></thead>
-          <tbody id="reports-tbody"></tbody>
-        </table>
-      </div>
-    </div>
+<!-- Admin App -->
+<div id="admin-app" style="display:none;">
 
-    <!-- Users Panel -->
-    <div class="admin-panel" id="panel-users">
-      <div class="filter-row">
-        <input class="search-sm" type="text" id="user-search" placeholder="নাম বা username..." oninput="filterUsers()">
-        <select class="search-sm" id="user-filter" onchange="filterUsers()">
-          <option value="all">সব</option>
-          <option value="active">Active</option>
-          <option value="banned">নিষিদ্ধ</option>
-          <option value="verified">Verified</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="loadUsers()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          রিফ্রেশ
+  <div class="admin-shell">
+
+    <!-- Header -->
+    <header class="admin-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <i data-lucide="layers" style="width:20px;height:20px;color:var(--red);"></i>
+        <span class="logo-text">DarkTales</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:var(--radius-full);background:var(--red-dim);color:var(--red);border:1px solid var(--border-accent);font-weight:600;">ADMIN</span>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <span id="admin-name" style="font-size:13px;color:var(--text-3);"></span>
+        <a href="index.html" class="btn btn-ghost btn-sm">
+          <i data-lucide="external-link" style="width:13px;height:13px;"></i>
+          সাইটে যান
+        </a>
+        <button class="btn btn-ghost btn-sm" onclick="doSignOut()">
+          <i data-lucide="log-out" style="width:13px;height:13px;"></i>
+          লগআউট
         </button>
       </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr>
-            <th>ইউজার</th><th>Username</th><th>XP / Level</th><th>গল্প</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th>
-          </tr></thead>
-          <tbody id="users-tbody"></tbody>
-        </table>
-      </div>
-    </div>
+    </header>
 
-    <!-- Stories Panel -->
-    <div class="admin-panel" id="panel-stories">
-      <div class="filter-row">
-        <input class="search-sm" type="text" id="story-search" placeholder="শিরোনাম খুঁজুন..." oninput="filterStories()">
-        <select class="search-sm" id="story-filter" onchange="filterStories()">
-          <option value="all">সব</option>
-          <option value="visible">দৃশ্যমান</option>
-          <option value="hidden">লুকানো</option>
-          <option value="featured">ফিচার্ড</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="loadStories()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          রিফ্রেশ
-        </button>
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <span class="nav-section-label">Admin Menu</span>
+      <div class="nav-item active" id="snav-dashboard" onclick="switchPanel('dashboard')">
+        <i data-lucide="layout-dashboard" style="width:16px;height:16px;"></i> ড্যাশবোর্ড
       </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr>
-            <th>শিরোনাম</th><th>লেখক</th><th>ক্যাটাগরি</th><th>লাইক</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th>
-          </tr></thead>
-          <tbody id="stories-tbody"></tbody>
-        </table>
+      <div class="nav-item" id="snav-reports" onclick="switchPanel('reports')">
+        <i data-lucide="flag" style="width:16px;height:16px;"></i> রিপোর্ট
+        <span id="snav-report-badge" class="badge badge-red" style="margin-left:auto;display:none;"></span>
       </div>
-    </div>
+      <div class="nav-item" id="snav-users" onclick="switchPanel('users')">
+        <i data-lucide="users" style="width:16px;height:16px;"></i> ইউজার
+      </div>
+      <div class="nav-item" id="snav-stories" onclick="switchPanel('stories')">
+        <i data-lucide="book-open" style="width:16px;height:16px;"></i> গল্প
+      </div>
+      <div class="nav-item" id="snav-system" onclick="switchPanel('system')">
+        <i data-lucide="settings" style="width:16px;height:16px;"></i> সিস্টেম
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="back-btn" onclick="window.location.href='index.html'">
+        <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> সাইটে ফিরুন
+      </div>
+    </aside>
 
-    <!-- System Panel -->
-    <div class="admin-panel" id="panel-system">
-      <div class="card">
-        <div class="card-body">
-          <div class="settings-section">
-            <div class="settings-section-title">সিস্টেম কন্ট্রোল</div>
+    <!-- Main -->
+    <main class="admin-main">
+
+      <!-- Dashboard Panel -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="page-header">
+          <h2 class="page-title"><i data-lucide="layout-dashboard" style="width:18px;height:18px;"></i> ড্যাশবোর্ড</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i> রিফ্রেশ
+          </button>
+        </div>
+        <div class="stat-grid" id="stat-grid">
+          <div class="stat-card"><div class="stat-icon" style="background:var(--info-dim);"><i data-lucide="users" style="width:18px;height:18px;color:var(--info);"></i></div><div class="stat-val" id="stat-users">...</div><div class="stat-label">মোট ইউজার</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--purple-dim);"><i data-lucide="book-open" style="width:18px;height:18px;color:#a78bfa;"></i></div><div class="stat-val" id="stat-stories">...</div><div class="stat-label">মোট গল্প</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--red-dim);"><i data-lucide="flag" style="width:18px;height:18px;color:var(--red);"></i></div><div class="stat-val" id="stat-reports">...</div><div class="stat-label">Pending রিপোর্ট</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:var(--gold-dim);"><i data-lucide="message-square" style="width:18px;height:18px;color:var(--gold);"></i></div><div class="stat-val" id="stat-banned">...</div><div class="stat-label">ব্যান্ড ইউজার</div></div>
+        </div>
+
+        <!-- Recent Stories -->
+        <h3 style="margin-bottom:.75rem;color:var(--text-2);font-size:13px;text-transform:uppercase;letter-spacing:.06em;">সাম্প্রতিক গল্প</h3>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>শিরোনাম</th><th>লেখক</th><th>লাইক</th><th>সময়</th><th>অ্যাকশন</th></tr></thead>
+            <tbody id="recent-stories-tbody"></tbody>
+          </table>
+        </div>
+        <div class="divider"></div>
+        <!-- Recent Users -->
+        <h3 style="margin-bottom:.75rem;color:var(--text-2);font-size:13px;text-transform:uppercase;letter-spacing:.06em;">নতুন ইউজার</h3>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ইউজার</th><th>Username</th><th>XP</th><th>যোগ দিয়েছেন</th><th>অ্যাকশন</th></tr></thead>
+            <tbody id="recent-users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Reports Panel -->
+      <div class="panel" id="panel-reports">
+        <div class="page-header">
+          <h2 class="page-title"><i data-lucide="flag" style="width:18px;height:18px;"></i> রিপোর্ট</h2>
+        </div>
+        <div class="filter-row">
+          <select class="input-sm form-select" id="report-status-filter" onchange="loadReports()" style="width:160px;">
+            <option value="pending">Pending</option>
+            <option value="resolved">Resolved</option>
+            <option value="dismissed">Dismissed</option>
+          </select>
+          <span style="font-size:12px;color:var(--text-3);" id="report-count-label"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ধরন</th><th>কারণ</th><th>রিপোর্টকারী</th><th>সময়</th><th>অ্যাকশন</th></tr></thead>
+            <tbody id="reports-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Users Panel -->
+      <div class="panel" id="panel-users">
+        <div class="page-header">
+          <h2 class="page-title"><i data-lucide="users" style="width:18px;height:18px;"></i> ইউজার ম্যানেজমেন্ট</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadUsers()">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i> রিফ্রেশ
+          </button>
+        </div>
+        <div class="filter-row">
+          <input class="input-sm" type="text" id="user-search" placeholder="নাম বা username..." oninput="filterUsers()" style="width:220px;">
+          <select class="input-sm form-select" id="user-status-filter" onchange="filterUsers()" style="width:140px;">
+            <option value="all">সব ইউজার</option>
+            <option value="active">Active</option>
+            <option value="banned">নিষিদ্ধ</option>
+            <option value="verified">Verified</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>ইউজার</th><th>Username</th><th>XP / Level</th><th>গল্প</th><th>স্ট্যাটাস</th><th>অ্যাকশন</th></tr></thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Stories Panel -->
+      <div class="panel" id="panel-stories">
+        <div class="page-header">
+          <h2 class="page-title"><i data-lucide="book-open" style="width:18px;height:18px;"></i> গল্প ম্যানেজমেন্ট</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadStories()">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;"></i> রিফ্রেশ
+          </button>
+        </div>
+        <div class="filter-row">
+          <input class="input-sm" type="text" id="story-search" placeholder="শিরোনাম খুঁজুন..." oninput="filterStories()" style="width:220px;">
+          <select class="input-sm form-select" id="story-status-filter" onchange="filterStories()" style="width:140px;">
+            <option value="all">সব গল্প</option>
+            <option value="visible">দৃশ্যমান</option>
+            <option value="hidden">লুকানো</option>
+            <option value="featured">ফিচার্ড</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>শিরোনাম</th><th>লেখক</th><th>লাইক / ভিউ</th><th>স্ট্যাটাস</th><th>সময়</th><th>অ্যাকশন</th></tr></thead>
+            <tbody id="stories-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System Panel -->
+      <div class="panel" id="panel-system">
+        <div class="page-header">
+          <h2 class="page-title"><i data-lucide="settings" style="width:18px;height:18px;"></i> সিস্টেম সেটিংস</h2>
+        </div>
+        <div class="card">
+          <div class="card-body">
+
+            <div class="section-title">সাইট কন্ট্রোল</div>
             <div class="setting-row">
               <div class="setting-info">
                 <div class="setting-label">Maintenance Mode</div>
-                <div class="setting-desc">চালু করলে নতুন ইউজার লগইন করতে পারবে না</div>
+                <div class="setting-desc">চালু করলে ইউজাররা "সাইট রক্ষণাবেক্ষণে" বার্তা দেখবে</div>
               </div>
               <button class="btn btn-ghost btn-sm" id="maintenance-btn" onclick="toggleMaintenance()">লোড হচ্ছে...</button>
             </div>
@@ -171,62 +382,52 @@
               </div>
               <button class="btn btn-ghost btn-sm" id="registration-btn" onclick="toggleRegistration()">লোড হচ্ছে...</button>
             </div>
-          </div>
 
-          <div class="settings-section">
-            <div class="settings-section-title">XP ম্যানুয়ালি দিন</div>
+            <div class="divider"></div>
+            <div class="section-title">XP ম্যানুয়ালি দিন</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <input class="form-input" type="text" id="xp-uid" placeholder="ইউজার UID" style="flex:1;min-width:200px;">
+              <input class="form-input" type="text" id="xp-uid" placeholder="ইউজার UID" style="flex:1;min-width:180px;">
               <input class="form-input" type="number" id="xp-amount" placeholder="XP পরিমাণ" style="width:130px;">
-              <button class="btn btn-primary" onclick="giveXP()">XP দিন</button>
+              <button class="btn btn-primary" onclick="giveXP()">
+                <i data-lucide="zap" style="width:14px;height:14px;"></i> XP দিন
+              </button>
             </div>
-          </div>
 
-          <div class="settings-section">
-            <div class="settings-section-title">ইউজারকে Admin করুন</div>
+            <div class="divider"></div>
+            <div class="section-title">Admin দিন</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <input class="form-input" type="text" id="admin-uid-input" placeholder="ইউজার UID" style="flex:1;min-width:200px;">
-              <button class="btn btn-primary" onclick="makeAdmin()">Admin করুন</button>
+              <input class="form-input" type="text" id="new-admin-uid" placeholder="ইউজার UID" style="flex:1;min-width:180px;">
+              <button class="btn btn-primary" onclick="makeAdmin()">
+                <i data-lucide="shield" style="width:14px;height:14px;"></i> Admin করুন
+              </button>
             </div>
-            <span class="form-hint mt-1">সতর্কতার সাথে ব্যবহার করুন</span>
-          </div>
+            <div class="form-hint mt-1">সতর্কতার সাথে ব্যবহার করুন। Admin সব কিছু নিয়ন্ত্রণ করতে পারবে।</div>
 
-          <div class="settings-section">
-            <div class="settings-section-title">সাইটের তথ্য</div>
-            <div style="display:flex;flex-direction:column;gap:10px;">
-              <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:8px 0;border-bottom:0.5px solid var(--border);">
-                <span style="color:var(--text-2);">প্রজেক্ট</span>
-                <span style="color:var(--text-1);">DarkTales</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:8px 0;border-bottom:0.5px solid var(--border);">
-                <span style="color:var(--text-2);">মালিক</span>
-                <span style="color:var(--text-1);">Muhammad Shourov</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:8px 0;">
-                <span style="color:var(--text-2);">Firebase Project</span>
-                <span style="color:var(--text-1);">darktales-3b610</span>
-              </div>
+            <div class="divider"></div>
+            <div class="section-title">সাইটের তথ্য</div>
+            <div style="display:flex;flex-direction:column;gap:0;">
+              <div class="setting-row"><div class="setting-info"><div class="setting-label">প্রজেক্ট</div></div><span style="font-size:13px;color:var(--text-2);">DarkTales</span></div>
+              <div class="setting-row"><div class="setting-info"><div class="setting-label">মালিক</div></div><span style="font-size:13px;color:var(--text-2);">Muhammad Shourov</span></div>
+              <div class="setting-row"><div class="setting-info"><div class="setting-label">Firebase Project</div></div><span style="font-size:13px;color:var(--text-2);">darktales-3b610</span></div>
+              <div class="setting-row"><div class="setting-info"><div class="setting-label">আপনার UID</div></div><span style="font-size:12px;color:var(--text-3);word-break:break-all;" id="my-uid-display">...</span></div>
             </div>
+
           </div>
         </div>
       </div>
-    </div>
-  </main>
+
+    </main>
+  </div>
 </div>
 
 <!-- Edit Story Modal -->
-<div class="modal-overlay" id="edit-story-modal">
+<div class="modal-overlay" id="edit-story-overlay">
   <div class="modal">
     <div class="modal-header">
       <span class="modal-title">গল্প সম্পাদনা</span>
-      <button class="btn-icon" onclick="closeModal('edit-story-modal')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      <button class="btn-icon" onclick="closeOverlay('edit-story-overlay')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
-    <div class="form-group">
-      <label class="form-label">শিরোনাম</label>
-      <input class="form-input" type="text" id="admin-edit-title">
-    </div>
+    <div class="form-group"><label class="form-label">শিরোনাম</label><input class="form-input" type="text" id="admin-edit-title" maxlength="150"></div>
     <div class="form-group">
       <label class="form-label">ক্যাটাগরি</label>
       <select class="form-input form-select" id="admin-edit-cat">
@@ -243,249 +444,250 @@
   </div>
 </div>
 
-<!-- Edit User XP Modal -->
-<div class="modal-overlay" id="edit-user-modal">
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="edit-user-overlay">
   <div class="modal">
     <div class="modal-header">
       <span class="modal-title" id="edit-user-modal-title">ইউজার সম্পাদনা</span>
-      <button class="btn-icon" onclick="closeModal('edit-user-modal')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+      <button class="btn-icon" onclick="closeOverlay('edit-user-overlay')"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
     </div>
-    <div class="form-group">
-      <label class="form-label">XP সেট করুন</label>
-      <input class="form-input" type="number" id="admin-user-xp" min="0">
-    </div>
+    <div class="form-group"><label class="form-label">XP সেট করুন</label><input class="form-input" type="number" id="admin-user-xp" min="0"></div>
     <input type="hidden" id="admin-edit-user-id">
     <button class="btn btn-primary w-full" onclick="saveUserXP()">আপডেট করুন</button>
   </div>
 </div>
 
-<div id="toast-container" class="toast-container"></div>
-
 <script>
+// ── Firebase Init ──
+const firebaseConfig = {
+  apiKey: "AIzaSyB2D2PDyUFGERGRkCeribAWc2Ogj1zG_nU",
+  authDomain: "darktales-3b610.firebaseapp.com",
+  projectId: "darktales-3b610",
+  storageBucket: "darktales-3b610.firebasestorage.app",
+  messagingSenderId: "371433251557",
+  appId: "1:371433251557:web:eef56e3d080983272aea0c"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ── State ──
+let currentUser = null;
 let allUsers = [];
 let allStories = [];
 let systemConfig = {};
+let currentPanel = 'dashboard';
 
-requireAuth(async (user, userData) => {
-  const admin = await isAdmin(user.uid);
-  if (!admin) {
-    document.body.innerHTML = `<div class="empty-state" style="min-height:100vh;"><h3>অ্যাক্সেস নেই</h3><p>শুধুমাত্র Admin এই পেজ দেখতে পারবেন।</p><a href="feed.html" class="btn btn-ghost btn-sm mt-2">ফিরে যান</a></div>`;
+// ── Boot ──
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    hideLoading();
+    window.location.href = 'index.html';
     return;
   }
-  buildNav('');
-  loadStats();
-  loadReports();
+  currentUser = user;
+  const adminDoc = await db.collection('admins').doc(user.uid).get();
+  if (!adminDoc.exists) {
+    hideLoading();
+    document.getElementById('access-denied').style.display = 'flex';
+    return;
+  }
+  document.getElementById('admin-name').textContent = user.displayName || user.email;
+  document.getElementById('my-uid-display').textContent = user.uid;
+  document.getElementById('admin-app').style.display = 'block';
+  hideLoading();
+  lucide.createIcons();
+  loadDashboard();
   loadSystemConfig();
+  watchPendingReports();
 });
 
-function switchPanel(btn, panel) {
-  document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
+function hideLoading() {
+  const el = document.getElementById('loading-screen');
+  if (el) { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }
+}
+
+// ── Navigation ──
+function switchPanel(panel) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + panel).classList.add('active');
+  document.getElementById('snav-' + panel).classList.add('active');
+  currentPanel = panel;
+  if (panel === 'reports') loadReports();
   if (panel === 'users' && allUsers.length === 0) loadUsers();
   if (panel === 'stories' && allStories.length === 0) loadStories();
 }
 
-async function loadStats() {
-  const [usersSnap, storiesSnap, reportsSnap, commentsSnap] = await Promise.all([
-    db.collection('users').get(),
-    db.collection('stories').where('isDraft','==',false).get(),
-    db.collection('reports').where('status','==','pending').get(),
-    db.collection('stories').get()
-  ]);
-  document.getElementById('stat-users').textContent = usersSnap.size;
-  document.getElementById('stat-stories').textContent = storiesSnap.size;
-  document.getElementById('stat-reports').textContent = reportsSnap.size;
-  let totalComments = 0;
-  commentsSnap.docs.forEach(d => { totalComments += (d.data().commentsCount || 0); });
-  document.getElementById('stat-comments').textContent = totalComments;
+// ── Helpers ──
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const icons = { success: '#4ade80', error: '#f87171', info: '#38bdf8' };
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:${icons[type]};flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/></svg><span class="toast-msg">${sanitize(msg)}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = '.25s'; setTimeout(() => t.remove(), 250); }, 3500);
+}
+
+function sanitize(str) {
+  const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+}
+
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  const diff = Math.floor((Date.now() - date) / 1000);
+  if (diff < 60) return 'এইমাত্র';
+  if (diff < 3600) return Math.floor(diff / 60) + ' মিনিট আগে';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' ঘন্টা আগে';
+  return Math.floor(diff / 86400) + ' দিন আগে';
+}
+
+function fmtNum(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+function renderAvatar(name) {
+  const colors = ['#7c3aed','#dc2626','#d97706','#0ea5e9','#16a34a'];
+  const color = colors[(name || '').charCodeAt(0) % colors.length];
+  return `<div class="avatar avatar-sm" style="background:${color}22;border-color:${color}44;color:${color};">${sanitize(getInitials(name))}</div>`;
+}
+
+const LEVELS = [
+  {min:0,max:99,name:'নতুন আত্মা'},
+  {min:100,max:499,name:'অন্ধকারের পথিক'},
+  {min:500,max:999,name:'ভয়ের গল্পকার'},
+  {min:1000,max:2499,name:'রাতের রাজা'},
+  {min:2500,max:4999,name:'অতিপ্রাকৃত মাস্টার'},
+  {min:5000,max:Infinity,name:'DarkTales Legend'}
+];
+
+function getLevelName(xp) {
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if ((xp || 0) >= LEVELS[i].min) return LEVELS[i].name;
+  }
+  return LEVELS[0].name;
+}
+
+const CATS = { ghost:'ভুতুড়ে', dark:'রাতের আঁধার', real:'বাস্তব ভয়', super:'অতিপ্রাকৃত', challenge:'চ্যালেঞ্জ', mystery:'রহস্য' };
+
+// ── Dashboard ──
+async function loadDashboard() {
+  try {
+    const [usersSnap, storiesSnap, reportsSnap, bannedSnap] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('stories').where('isDraft','==',false).get(),
+      db.collection('reports').where('status','==','pending').get(),
+      db.collection('users').where('banned','==',true).get()
+    ]);
+    document.getElementById('stat-users').textContent = usersSnap.size;
+    document.getElementById('stat-stories').textContent = storiesSnap.size;
+    document.getElementById('stat-reports').textContent = reportsSnap.size;
+    document.getElementById('stat-banned').textContent = bannedSnap.size;
+    lucide.createIcons();
+
+    // Recent stories
+    const recentStories = await db.collection('stories').where('isDraft','==',false).orderBy('createdAt','desc').limit(8).get();
+    const stb = document.getElementById('recent-stories-tbody');
+    stb.innerHTML = recentStories.empty ? `<tr><td colspan="5" class="empty-row">কোনো গল্প নেই</td></tr>` :
+      recentStories.docs.map(doc => {
+        const s = doc.data();
+        return `<tr>
+          <td><div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-1);">${sanitize(s.title)}</div></td>
+          <td style="color:var(--text-2);">${sanitize(s.isAnonymous ? 'অজানা' : s.authorName)}</td>
+          <td>${s.likesCount || 0}</td>
+          <td style="color:var(--text-3);">${timeAgo(s.createdAt)}</td>
+          <td><div class="td-actions">
+            <button class="btn btn-ghost btn-xs" onclick="window.open('index.html#story-${doc.id}','_blank')">দেখুন</button>
+            ${s.hidden ? `<button class="btn btn-ghost btn-xs" style="color:var(--success);" onclick="toggleHide('${doc.id}',true,this)">দেখান</button>` : `<button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="toggleHide('${doc.id}',false,this)">Hide</button>`}
+            <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="deleteStory('${doc.id}',null,this)">Delete</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+
+    // Recent users
+    const recentUsers = await db.collection('users').orderBy('createdAt','desc').limit(8).get();
+    const utb = document.getElementById('recent-users-tbody');
+    utb.innerHTML = recentUsers.empty ? `<tr><td colspan="5" class="empty-row">কোনো ইউজার নেই</td></tr>` :
+      recentUsers.docs.map(doc => {
+        const u = doc.data();
+        return `<tr>
+          <td><div style="display:flex;align-items:center;gap:8px;">${renderAvatar(u.displayName)}<span style="color:var(--text-1);">${sanitize(u.displayName || 'N/A')}</span></div></td>
+          <td style="color:var(--text-3);">@${sanitize(u.username || '')}</td>
+          <td style="color:var(--gold);">${fmtNum(u.xp || 0)} XP</td>
+          <td style="color:var(--text-3);">${timeAgo(u.createdAt)}</td>
+          <td><div class="td-actions">
+            ${u.banned ? `<button class="btn btn-ghost btn-xs" style="color:var(--success);" onclick="toggleBan('${doc.id}',true,this)">আনব্যান</button>` : `<button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="toggleBan('${doc.id}',false,this)">ব্যান</button>`}
+          </div></td>
+        </tr>`;
+      }).join('');
+
+    lucide.createIcons();
+  } catch (e) {
+    showToast('ড্যাশবোর্ড লোড করতে সমস্যা হয়েছে', 'error');
+  }
+}
+
+// ── Reports ──
+function watchPendingReports() {
+  db.collection('reports').where('status','==','pending').onSnapshot(snap => {
+    const count = snap.size;
+    const badge = document.getElementById('snav-report-badge');
+    if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-flex' : 'none'; }
+  });
 }
 
 async function loadReports() {
   const status = document.getElementById('report-status-filter').value;
-  const snap = await db.collection('reports').where('status','==',status).orderBy('createdAt','desc').limit(50).get();
-  document.getElementById('report-count').textContent = `${snap.size} টি`;
   const tbody = document.getElementById('reports-tbody');
-  if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-3);">কোনো রিপোর্ট নেই</td></tr>`; return; }
+  tbody.innerHTML = `<tr><td colspan="5" class="empty-row"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+  const snap = await db.collection('reports').where('status','==',status).orderBy('createdAt','desc').limit(60).get();
+  document.getElementById('report-count-label').textContent = snap.size + ' টি রিপোর্ট';
+  if (snap.empty) { tbody.innerHTML = `<tr><td colspan="5" class="empty-row">কোনো রিপোর্ট নেই</td></tr>`; return; }
   tbody.innerHTML = snap.docs.map(doc => {
-    const r = { id: doc.id, ...doc.data() };
-    const link = r.targetType === 'story' ? `<a href="story.html?id=${r.targetId}" style="color:var(--info);font-size:12px;" target="_blank">দেখুন</a>` : `<span style="font-size:12px;color:var(--text-3);">Comment</span>`;
+    const r = doc.data();
     return `<tr>
-      <td><span style="font-size:12px;${r.targetType==='story'?'color:var(--red)':'color:var(--gold);'}">${r.targetType}</span></td>
-      <td>${link}</td>
-      <td style="font-size:12.5px;">${sanitizeText(r.reason)}</td>
-      <td style="font-size:12px;color:var(--text-3);">${r.reporterId?.slice(0,8)}...</td>
-      <td style="font-size:12px;color:var(--text-3);">${timeAgo(r.createdAt)}</td>
-      <td>
-        <div style="display:flex;gap:4px;">
-          ${r.targetType === 'story' ? `
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);" onclick="hideStoryAdmin('${r.targetId}','${r.id}')">Hide</button>
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);" onclick="deleteStoryAdmin('${r.targetId}','${r.id}')">Delete</button>
-          ` : `
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);" onclick="deleteCommentAdmin('${r.storyId}','${r.targetId}','${r.id}')">Delete</button>
-          `}
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="dismissReport('${r.id}')">Dismiss</button>
-        </div>
-      </td>
+      <td><span class="badge ${r.targetType==='story'?'badge-red':'badge-blue'}">${r.targetType}</span></td>
+      <td style="color:var(--text-3);">${sanitize(r.reason)}</td>
+      <td style="font-size:12px;color:var(--text-3);">${(r.reporterId||'').slice(0,10)}...</td>
+      <td style="color:var(--text-3);">${timeAgo(r.createdAt)}</td>
+      <td><div class="td-actions">
+        ${r.targetType==='story' && r.targetId ? `<button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="hideFromReport('${r.targetId}','${doc.id}')">Hide</button>
+        <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="deleteStory('${r.targetId}','${doc.id}',this)">Delete</button>` : ''}
+        ${r.targetType==='comment' && r.targetId && r.storyId ? `<button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="deleteComment('${r.storyId}','${r.targetId}','${doc.id}')">Delete</button>` : ''}
+        <button class="btn btn-ghost btn-xs" onclick="dismissReport('${doc.id}')">Dismiss</button>
+      </div></td>
     </tr>`;
   }).join('');
+  lucide.createIcons();
 }
 
-async function loadUsers() {
-  const snap = await db.collection('users').orderBy('createdAt','desc').limit(100).get();
-  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderUsers(allUsers);
-}
-
-function filterUsers() {
-  const q = document.getElementById('user-search').value.toLowerCase();
-  const filter = document.getElementById('user-filter').value;
-  let filtered = allUsers.filter(u => {
-    const matchQ = !q || (u.displayName||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
-    let matchF = true;
-    if (filter === 'active') matchF = !u.banned;
-    if (filter === 'banned') matchF = u.banned;
-    if (filter === 'verified') matchF = u.verified;
-    return matchQ && matchF;
-  });
-  renderUsers(filtered);
-}
-
-function renderUsers(users) {
-  const tbody = document.getElementById('users-tbody');
-  if (!users.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-3);">কোনো ইউজার নেই</td></tr>`; return; }
-  tbody.innerHTML = users.map(u => {
-    const lvl = getLevelInfo(u.xp || 0);
-    return `<tr>
-      <td>
-        <div style="display:flex;align-items:center;gap:8px;">
-          ${renderAvatar(u.displayName, 'sm')}
-          <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text-1);">${sanitizeText(u.displayName || 'N/A')}</div>
-            <div style="font-size:11px;color:var(--text-3);">${u.id.slice(0,12)}...</div>
-          </div>
-        </div>
-      </td>
-      <td style="font-size:13px;">@${sanitizeText(u.username || '')}</td>
-      <td>
-        <div style="font-size:13px;color:var(--gold);">${fmtNum(u.xp||0)} XP</div>
-        <div style="font-size:11px;color:var(--text-3);">${lvl.name}</div>
-      </td>
-      <td style="font-size:13px;">${u.storiesCount||0}</td>
-      <td>
-        <span class="status-dot ${u.banned?'status-banned':'status-active'}"></span>
-        <span style="font-size:12px;color:${u.banned?'var(--red)':'var(--success)'};">${u.banned?'নিষিদ্ধ':'Active'}</span>
-        ${u.verified?'<span class="featured-badge" style="margin-left:4px;">✓</span>':''}
-      </td>
-      <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="window.open('profile.html?uid=${u.id}','_blank')">প্রোফাইল</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="openEditUser('${u.id}','${sanitizeText(u.displayName||'')}',${u.xp||0})"">XP</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:${u.banned?'var(--success)':'var(--red)'};" onclick="toggleBan('${u.id}',${u.banned})">${u.banned?'আনব্যান':'ব্যান'}</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:${u.verified?'var(--text-3)':'var(--gold)'};" onclick="toggleVerify('${u.id}',${u.verified})">${u.verified?'Unverify':'Verify'}</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function loadStories() {
-  const snap = await db.collection('stories').where('isDraft','==',false).orderBy('createdAt','desc').limit(100).get();
-  allStories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderStories(allStories);
-}
-
-function filterStories() {
-  const q = document.getElementById('story-search').value.toLowerCase();
-  const filter = document.getElementById('story-filter').value;
-  let filtered = allStories.filter(s => {
-    const matchQ = !q || (s.title||'').toLowerCase().includes(q) || (s.authorName||'').toLowerCase().includes(q);
-    let matchF = true;
-    if (filter === 'visible') matchF = !s.hidden;
-    if (filter === 'hidden') matchF = s.hidden;
-    if (filter === 'featured') matchF = s.featured;
-    return matchQ && matchF;
-  });
-  renderStories(filtered);
-}
-
-function renderStories(stories) {
-  const tbody = document.getElementById('stories-tbody');
-  if (!stories.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-3);">কোনো গল্প নেই</td></tr>`; return; }
-  tbody.innerHTML = stories.map(s => {
-    const cat = getCategoryInfo(s.category);
-    return `<tr>
-      <td>
-        <div style="max-width:200px;font-size:13px;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sanitizeText(s.title)}</div>
-        <div style="font-size:11px;color:var(--text-3);">${timeAgo(s.createdAt)}</div>
-      </td>
-      <td style="font-size:12.5px;">${sanitizeText(s.isAnonymous?'অজানা':s.authorName)}</td>
-      <td><span class="category-badge ${cat.class}" style="font-size:10px;">${sanitizeText(cat.label)}</span></td>
-      <td style="font-size:13px;">${s.likesCount||0}</td>
-      <td>
-        ${s.featured?'<span class="featured-badge">ফিচার্ড</span>':''}
-        ${s.hidden?'<span class="banned-badge">লুকানো</span>':'<span style="font-size:11px;color:var(--success);">দৃশ্যমান</span>'}
-      </td>
-      <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="window.open('story.html?id=${s.id}','_blank')">দেখুন</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;" onclick="openEditStory('${s.id}','${sanitizeText(s.title).replace(/'/g,"\\'")}','${s.category}')">সম্পাদনা</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:${s.featured?'var(--text-3)':'var(--gold)'};" onclick="toggleFeature('${s.id}',${s.featured})">${s.featured?'Unfeature':'Feature'}</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:${s.hidden?'var(--success)':'var(--red)'};" onclick="toggleHide('${s.id}',${s.hidden})">${s.hidden?'দেখান':'Hide'}</button>
-          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red);" onclick="deleteStoryAdmin('${s.id}',null)">Delete</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function toggleBan(uid, isBanned) {
-  await db.collection('users').doc(uid).update({ banned: !isBanned });
-  showToast(isBanned ? 'আনব্যান করা হয়েছে' : 'ব্যান করা হয়েছে', 'success');
-  loadUsers();
-}
-
-async function toggleVerify(uid, isVerified) {
-  await db.collection('users').doc(uid).update({ verified: !isVerified });
-  showToast(isVerified ? 'Verification সরানো হয়েছে' : 'Verified করা হয়েছে', 'success');
-  loadUsers();
-}
-
-async function toggleFeature(storyId, isFeatured) {
-  await db.collection('stories').doc(storyId).update({ featured: !isFeatured });
-  if (!isFeatured) {
-    const doc = await db.collection('stories').doc(storyId).get();
-    if (doc.exists) await awardXP(doc.data().authorId, XP_RULES.STORY_FEATURED, 'story_featured');
-  }
-  showToast(isFeatured ? 'Feature সরানো হয়েছে' : 'Featured করা হয়েছে', 'success');
-  loadStories();
-}
-
-async function toggleHide(storyId, isHidden) {
-  await db.collection('stories').doc(storyId).update({ hidden: !isHidden });
-  showToast(isHidden ? 'গল্প দৃশ্যমান করা হয়েছে' : 'গল্প লুকানো হয়েছে', 'success');
-  loadStories();
-}
-
-async function hideStoryAdmin(storyId, reportId) {
+async function hideFromReport(storyId, reportId) {
   await db.collection('stories').doc(storyId).update({ hidden: true });
   await db.collection('reports').doc(reportId).update({ status: 'resolved' });
-  showToast('গল্প লুকানো ও রিপোর্ট সমাধান হয়েছে', 'success');
-  loadReports(); loadStats();
+  showToast('গল্প লুকানো হয়েছে', 'success');
+  loadReports();
 }
 
-async function deleteStoryAdmin(storyId, reportId) {
-  if (!confirm('গল্পটি মুছবেন?')) return;
+async function deleteStory(storyId, reportId, btn) {
+  if (!confirm('গল্পটি চিরতরে মুছবেন?')) return;
   await db.collection('stories').doc(storyId).delete();
   if (reportId) await db.collection('reports').doc(reportId).update({ status: 'resolved' });
   showToast('গল্প মুছে ফেলা হয়েছে', 'success');
-  loadReports(); loadStories(); loadStats();
+  if (reportId) loadReports(); else loadDashboard();
+  if (allStories.length > 0) loadStories();
 }
 
-async function deleteCommentAdmin(storyId, commentId, reportId) {
+async function deleteComment(storyId, commentId, reportId) {
   if (!confirm('মন্তব্যটি মুছবেন?')) return;
   await db.collection('stories').doc(storyId).collection('comments').doc(commentId).delete();
   await db.collection('stories').doc(storyId).update({ commentsCount: firebase.firestore.FieldValue.increment(-1) });
@@ -496,15 +698,163 @@ async function deleteCommentAdmin(storyId, commentId, reportId) {
 
 async function dismissReport(reportId) {
   await db.collection('reports').doc(reportId).update({ status: 'dismissed' });
-  showToast('রিপোর্ট dismiss করা হয়েছে', 'info');
-  loadReports(); loadStats();
+  showToast('Dismiss করা হয়েছে', 'info');
+  loadReports();
+}
+
+// ── Users ──
+async function loadUsers() {
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = `<tr><td colspan="6" class="empty-row"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+  const snap = await db.collection('users').orderBy('createdAt','desc').limit(100).get();
+  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUsers(allUsers);
+}
+
+function filterUsers() {
+  const q = (document.getElementById('user-search').value || '').toLowerCase();
+  const f = document.getElementById('user-status-filter').value;
+  let list = allUsers.filter(u => {
+    const mq = !q || (u.displayName||'').toLowerCase().includes(q) || (u.username||'').toLowerCase().includes(q);
+    let mf = true;
+    if (f === 'active') mf = !u.banned;
+    if (f === 'banned') mf = !!u.banned;
+    if (f === 'verified') mf = !!u.verified;
+    return mq && mf;
+  });
+  renderUsers(list);
+}
+
+function renderUsers(list) {
+  const tbody = document.getElementById('users-tbody');
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty-row">কোনো ইউজার নেই</td></tr>`; return; }
+  tbody.innerHTML = list.map(u => `<tr>
+    <td><div style="display:flex;align-items:center;gap:8px;">${renderAvatar(u.displayName)}
+      <div><div style="color:var(--text-1);font-size:13px;">${sanitize(u.displayName||'N/A')}</div>
+      <div style="font-size:11px;color:var(--text-3);">${u.id.slice(0,14)}...</div></div>
+    </div></td>
+    <td style="color:var(--text-3);">@${sanitize(u.username||'')}</td>
+    <td><div style="color:var(--gold);font-size:13px;">${fmtNum(u.xp||0)} XP</div><div style="font-size:11px;color:var(--text-3);">${getLevelName(u.xp)}</div></td>
+    <td style="font-size:13px;">${u.storiesCount||0}</td>
+    <td>
+      <span class="dot ${u.banned?'dot-red':'dot-green'}"></span>
+      <span style="font-size:12px;color:${u.banned?'var(--red)':'var(--success)'};">${u.banned?'নিষিদ্ধ':'Active'}</span>
+      ${u.verified?'<span class="badge badge-gold" style="margin-left:4px;">✓</span>':''}
+    </td>
+    <td><div class="td-actions">
+      <button class="btn btn-ghost btn-xs" onclick="openEditUser('${u.id}','${sanitize(u.displayName||'')}',${u.xp||0})">XP</button>
+      <button class="btn btn-ghost btn-xs" style="color:${u.banned?'var(--success)':'var(--red)'};" onclick="toggleBan('${u.id}',${!!u.banned},this)">${u.banned?'আনব্যান':'ব্যান'}</button>
+      <button class="btn btn-ghost btn-xs" style="color:${u.verified?'var(--text-3)':'var(--gold)'};" onclick="toggleVerify('${u.id}',${!!u.verified},this)">${u.verified?'Unverify':'Verify'}</button>
+    </div></td>
+  </tr>`).join('');
+  lucide.createIcons();
+}
+
+async function toggleBan(uid, isBanned, btn) {
+  if (btn) { btn.disabled = true; }
+  await db.collection('users').doc(uid).update({ banned: !isBanned });
+  showToast(isBanned ? 'আনব্যান করা হয়েছে' : 'ব্যান করা হয়েছে', 'success');
+  const idx = allUsers.findIndex(u => u.id === uid);
+  if (idx >= 0) allUsers[idx].banned = !isBanned;
+  filterUsers();
+}
+
+async function toggleVerify(uid, isVerified, btn) {
+  if (btn) btn.disabled = true;
+  await db.collection('users').doc(uid).update({ verified: !isVerified });
+  showToast(isVerified ? 'Verification সরানো হয়েছে' : 'Verified করা হয়েছে', 'success');
+  const idx = allUsers.findIndex(u => u.id === uid);
+  if (idx >= 0) allUsers[idx].verified = !isVerified;
+  filterUsers();
+}
+
+function openEditUser(id, name, xp) {
+  document.getElementById('admin-edit-user-id').value = id;
+  document.getElementById('edit-user-modal-title').textContent = name + ' — XP';
+  document.getElementById('admin-user-xp').value = xp;
+  document.getElementById('edit-user-overlay').classList.add('open');
+}
+
+async function saveUserXP() {
+  const id = document.getElementById('admin-edit-user-id').value;
+  const xp = parseInt(document.getElementById('admin-user-xp').value);
+  if (isNaN(xp) || xp < 0) { showToast('সঠিক XP দিন', 'error'); return; }
+  await db.collection('users').doc(id).update({ xp });
+  closeOverlay('edit-user-overlay');
+  showToast('XP আপডেট হয়েছে', 'success');
+  const idx = allUsers.findIndex(u => u.id === id);
+  if (idx >= 0) allUsers[idx].xp = xp;
+  filterUsers();
+}
+
+// ── Stories ──
+async function loadStories() {
+  const tbody = document.getElementById('stories-tbody');
+  tbody.innerHTML = `<tr><td colspan="6" class="empty-row"><div class="spinner" style="margin:0 auto;"></div></td></tr>`;
+  const snap = await db.collection('stories').where('isDraft','==',false).orderBy('createdAt','desc').limit(100).get();
+  allStories = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderStories(allStories);
+}
+
+function filterStories() {
+  const q = (document.getElementById('story-search').value || '').toLowerCase();
+  const f = document.getElementById('story-status-filter').value;
+  let list = allStories.filter(s => {
+    const mq = !q || (s.title||'').toLowerCase().includes(q) || (s.authorName||'').toLowerCase().includes(q);
+    let mf = true;
+    if (f === 'visible') mf = !s.hidden;
+    if (f === 'hidden') mf = !!s.hidden;
+    if (f === 'featured') mf = !!s.featured;
+    return mq && mf;
+  });
+  renderStories(list);
+}
+
+function renderStories(list) {
+  const tbody = document.getElementById('stories-tbody');
+  if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty-row">কোনো গল্প নেই</td></tr>`; return; }
+  tbody.innerHTML = list.map(s => `<tr>
+    <td><div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-1);">${sanitize(s.title)}</div></td>
+    <td style="color:var(--text-2);">${sanitize(s.isAnonymous?'অজানা':s.authorName)}</td>
+    <td><span style="color:var(--red);">${s.likesCount||0}</span> / <span style="color:var(--text-3);">${fmtNum(s.views||0)}</span></td>
+    <td>
+      ${s.featured?'<span class="badge badge-gold">ফিচার্ড</span>':''}
+      ${s.hidden?'<span class="badge badge-red">লুকানো</span>':'<span class="badge badge-green">দৃশ্যমান</span>'}
+    </td>
+    <td style="color:var(--text-3);">${timeAgo(s.createdAt)}</td>
+    <td><div class="td-actions">
+      <button class="btn btn-ghost btn-xs" onclick="openEditStory('${s.id}','${sanitize(s.title).replace(/'/g,"\\'")}','${s.category}')">সম্পাদনা</button>
+      <button class="btn btn-ghost btn-xs" style="color:${s.featured?'var(--text-3)':'var(--gold)'};" onclick="toggleFeature('${s.id}',${!!s.featured},this)">${s.featured?'Unfeature':'Feature'}</button>
+      <button class="btn btn-ghost btn-xs" style="color:${s.hidden?'var(--success)':'var(--red)'};" onclick="toggleHide('${s.id}',${!!s.hidden},this)">${s.hidden?'দেখান':'Hide'}</button>
+      <button class="btn btn-ghost btn-xs" style="color:var(--red);" onclick="deleteStory('${s.id}',null,this)">Delete</button>
+    </div></td>
+  </tr>`).join('');
+  lucide.createIcons();
+}
+
+async function toggleFeature(storyId, isFeatured, btn) {
+  if (btn) btn.disabled = true;
+  await db.collection('stories').doc(storyId).update({ featured: !isFeatured });
+  showToast(isFeatured ? 'Feature সরানো হয়েছে' : 'Featured করা হয়েছে', 'success');
+  const idx = allStories.findIndex(s => s.id === storyId);
+  if (idx >= 0) allStories[idx].featured = !isFeatured;
+  filterStories();
+}
+
+async function toggleHide(storyId, isHidden, btn) {
+  if (btn) btn.disabled = true;
+  await db.collection('stories').doc(storyId).update({ hidden: !isHidden });
+  showToast(isHidden ? 'গল্প দৃশ্যমান করা হয়েছে' : 'গল্প লুকানো হয়েছে', 'success');
+  const idx = allStories.findIndex(s => s.id === storyId);
+  if (idx >= 0) allStories[idx].hidden = !isHidden;
+  filterStories();
 }
 
 function openEditStory(id, title, cat) {
   document.getElementById('admin-edit-story-id').value = id;
   document.getElementById('admin-edit-title').value = title;
-  document.getElementById('admin-edit-cat').value = cat;
-  document.getElementById('edit-story-modal').classList.add('open');
+  document.getElementById('admin-edit-cat').value = cat || 'ghost';
+  document.getElementById('edit-story-overlay').classList.add('open');
 }
 
 async function saveStoryEdit() {
@@ -513,76 +863,73 @@ async function saveStoryEdit() {
   const cat = document.getElementById('admin-edit-cat').value;
   if (!title) { showToast('শিরোনাম দিন', 'error'); return; }
   await db.collection('stories').doc(id).update({ title, category: cat, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-  closeModal('edit-story-modal');
+  closeOverlay('edit-story-overlay');
   showToast('গল্প আপডেট হয়েছে', 'success');
-  loadStories();
+  const idx = allStories.findIndex(s => s.id === id);
+  if (idx >= 0) { allStories[idx].title = title; allStories[idx].category = cat; }
+  filterStories();
 }
 
-function openEditUser(id, name, xp) {
-  document.getElementById('admin-edit-user-id').value = id;
-  document.getElementById('edit-user-modal-title').textContent = name + ' — XP সম্পাদনা';
-  document.getElementById('admin-user-xp').value = xp;
-  document.getElementById('edit-user-modal').classList.add('open');
-}
-
-async function saveUserXP() {
-  const id = document.getElementById('admin-edit-user-id').value;
-  const xp = parseInt(document.getElementById('admin-user-xp').value);
-  if (isNaN(xp) || xp < 0) { showToast('সঠিক XP দিন', 'error'); return; }
-  await db.collection('users').doc(id).update({ xp });
-  closeModal('edit-user-modal');
-  showToast('XP আপডেট হয়েছে', 'success');
-  loadUsers();
-}
-
-async function giveXP() {
-  const uid = document.getElementById('xp-uid').value.trim();
-  const amount = parseInt(document.getElementById('xp-amount').value);
-  if (!uid) { showToast('UID দিন', 'error'); return; }
-  if (isNaN(amount)) { showToast('XP পরিমাণ দিন', 'error'); return; }
-  await awardXP(uid, amount, 'admin_grant');
-  showToast(`+${amount} XP দেওয়া হয়েছে`, 'success');
-  document.getElementById('xp-uid').value = '';
-  document.getElementById('xp-amount').value = '';
-}
-
-async function makeAdmin() {
-  const uid = document.getElementById('admin-uid-input').value.trim();
-  if (!uid) { showToast('UID দিন', 'error'); return; }
-  await db.collection('admins').doc(uid).set({ uid, grantedAt: firebase.firestore.FieldValue.serverTimestamp(), grantedBy: currentUser.uid });
-  showToast('Admin করা হয়েছে', 'success');
-  document.getElementById('admin-uid-input').value = '';
-}
-
+// ── System ──
 async function loadSystemConfig() {
   const doc = await db.collection('config').doc('system').get();
   systemConfig = doc.exists ? doc.data() : {};
-  updateSystemButtons();
+  updateSystemBtns();
 }
 
-function updateSystemButtons() {
+function updateSystemBtns() {
   const mb = document.getElementById('maintenance-btn');
   const rb = document.getElementById('registration-btn');
-  if (mb) mb.textContent = systemConfig.maintenance ? 'বন্ধ করুন' : 'চালু করুন';
-  if (rb) rb.textContent = systemConfig.registrationDisabled ? 'চালু করুন' : 'বন্ধ করুন';
+  if (mb) { mb.textContent = systemConfig.maintenance ? 'বন্ধ করুন' : 'চালু করুন'; mb.style.color = systemConfig.maintenance ? 'var(--red)' : ''; }
+  if (rb) { rb.textContent = systemConfig.registrationDisabled ? 'চালু করুন' : 'বন্ধ করুন'; rb.style.color = systemConfig.registrationDisabled ? 'var(--red)' : ''; }
 }
 
 async function toggleMaintenance() {
   systemConfig.maintenance = !systemConfig.maintenance;
   await db.collection('config').doc('system').set(systemConfig, { merge: true });
   showToast(systemConfig.maintenance ? 'Maintenance Mode চালু' : 'Maintenance Mode বন্ধ', 'success');
-  updateSystemButtons();
+  updateSystemBtns();
 }
 
 async function toggleRegistration() {
   systemConfig.registrationDisabled = !systemConfig.registrationDisabled;
   await db.collection('config').doc('system').set(systemConfig, { merge: true });
   showToast(systemConfig.registrationDisabled ? 'রেজিস্ট্রেশন বন্ধ করা হয়েছে' : 'রেজিস্ট্রেশন চালু করা হয়েছে', 'success');
-  updateSystemButtons();
+  updateSystemBtns();
 }
 
-function closeModal(id) {
+async function giveXP() {
+  const uid = document.getElementById('xp-uid').value.trim();
+  const amount = parseInt(document.getElementById('xp-amount').value);
+  if (!uid) { showToast('UID দিন', 'error'); return; }
+  if (isNaN(amount) || amount === 0) { showToast('XP পরিমাণ দিন', 'error'); return; }
+  await db.collection('users').doc(uid).update({ xp: firebase.firestore.FieldValue.increment(amount) });
+  showToast(`+${amount} XP দেওয়া হয়েছে`, 'success');
+  document.getElementById('xp-uid').value = '';
+  document.getElementById('xp-amount').value = '';
+}
+
+async function makeAdmin() {
+  const uid = document.getElementById('new-admin-uid').value.trim();
+  if (!uid) { showToast('UID দিন', 'error'); return; }
+  if (!confirm(`এই UID কে Admin করবেন?\n${uid}`)) return;
+  await db.collection('admins').doc(uid).set({
+    uid,
+    grantedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    grantedBy: currentUser.uid
+  });
+  showToast('Admin করা হয়েছে', 'success');
+  document.getElementById('new-admin-uid').value = '';
+}
+
+// ── Modal ──
+function closeOverlay(id) {
   document.getElementById(id).classList.remove('open');
+}
+
+// ── Auth ──
+function doSignOut() {
+  auth.signOut().then(() => { window.location.href = 'index.html'; });
 }
 </script>
 </body>
